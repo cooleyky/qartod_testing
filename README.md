@@ -1,6 +1,6 @@
-qartod_testing
+QARTOD Testing
 ==============================
-[![Build Status](https://github.com/@cooleyky/qartod_testing/workflows/Tests/badge.svg)](https://github.com/@cooleyky/qartod_testing/actions)
+<!-- [![Build Status](https://github.com/@cooleyky/qartod_testing/workflows/Tests/badge.svg)](https://github.com/@cooleyky/qartod_testing/actions) -->
 [![codecov](https://codecov.io/gh/@cooleyky/qartod_testing/branch/main/graph/badge.svg)](https://codecov.io/gh/@cooleyky/qartod_testing)
 [![License:MIT](https://img.shields.io/badge/License-MIT-lightgray.svg?style=flt-square)](https://opensource.org/licenses/MIT)
 [![pypi](https://img.shields.io/pypi/v/qartod_testing.svg)](https://pypi.org/project/qartod_testing)
