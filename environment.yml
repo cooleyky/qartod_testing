@@ -1,17 +1,41 @@
-name: qartod_testing
+name: OOINet
 channels:
-  - conda-forge
+  - defaults
 dependencies:
-  # Required for full project functionality (dont remove)
-  - pytest
-  # Examples (remove and add as needed)
-  - jupyter
-  - jupyterlab
-  - xarray
-  - numpy
-  - scipy
-  - dask
-  - netcdf4
-  - pandas
-  - matplotlib
-  - ioos_qc
+  - xz=5.2.5
+  - liblapack=3.8.0
+  - libffi=3.2.1
+  - setuptools=49.2.1
+  - requests=2.24.0
+  - pip=20.2.1
+  - urllib3=1.25.10
+  - cffi=1.14.1
+  - pytz=2020.1
+  - _libgcc_mutex=0.1
+  - ca-certificates=2020.6.20
+  - openssl=1.1.1g
+  - yaml=0.2.5
+  - libopenblas=0.3.10
+  - idna=2.10
+  - certifi=2020.6.20
+  - tk=8.6.10
+  - pyopenssl=19.1.0
+  - brotlipy=0.7.0
+  - six=1.15.0
+  - sqlite=3.32.3
+  - zlib=1.2.11
+  - libcblas=3.8.0
+  - python=3.8.5
+  - pysocks=1.7.1
+  - numpy=1.19.1
+  - python_abi=3.8
+  - pyyaml=5.3.1
+  - libblas=3.8.0
+  - python-dateutil=2.8.1
+  - wheel=0.34.2
+  - xarray=0.16.0
+  - chardet=3.0.4
+  - pandas=1.1.0
+  - pycparser=2.20
+  - cryptography=3.0
+prefix: C:\Users\cooleyky\Anaconda3\envs\OOINet
