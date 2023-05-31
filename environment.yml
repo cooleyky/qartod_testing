@@ -4,7 +4,6 @@ channels:
   - conda-forge
 dependencies:
   - requests
-  - pip
   - pytz
   - openssl
   - yaml
@@ -18,16 +17,9 @@ dependencies:
   - pandas
   - dask
   - ioos_qc
-  - os
-  - ast
   - matplotlib
-  - re
-  - netrc
-  - io
-  - warnings
   - tqdm
   - pandas
   - netCDF4
-  - gc
-  - sys
+  - pip
 prefix: C:\Users\cooleyky\Anaconda3\envs\qartod_test
