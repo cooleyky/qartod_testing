@@ -15,6 +15,9 @@ import requests
 import io
 import time
 import sys
+import pandas as pd
+import ast
+from ioos_qc.qartod import gross_range_test, climatology_test, ClimatologyConfig
 
 def build_data_path(refdes,method,stream,prefix,folder='interim',suffix='.nc'):
     # Input: 
@@ -231,3 +234,196 @@ def dev1_request(site, node, sensor, method, stream, params):
         data = None
     
     return data
+
+def timeseries_dict_to_xarray(dictionary, ds):
+    # Input:
+    #   dictionary
+    #   ds
+    #
+    # Returns:
+    #   dict_as_ds
+
+    # convert dict to data frame
+    dict_as_df = pd.DataFrame.from_dict(dictionary)
+
+    # Add time vector to df and set time as index
+    dict_as_df = dict_as_df.assign(time=ds.time.values)
+    dict_as_df = dict_as_df.set_index("time")
+    
+    # convert df to xarray
+    dict_as_ds = dict_as_df.to_xarray() 
+
+    return dict_as_ds
+
+GITHUB_BASE_URL = "https://raw.githubusercontent.com/oceanobservatories/qc-lookup/master/qartod"
+
+def load_gross_range_qartod_test_values(refdes, stream, ooinet_param):
+    """
+    Load the gross range QARTOD test from gitHub
+    """
+    subsite, node, sensor = refdes.split("-", 2)
+    sensor_type = sensor[3:8].lower()
+    
+    # gitHub url to the gross range table
+    GROSS_RANGE_URL = f"{GITHUB_BASE_URL}/{sensor_type}/{sensor_type}_qartod_gross_range_test_values.csv"
+    
+    # Download the results
+    download = requests.get(GROSS_RANGE_URL)
+    if download.status_code == 200:
+        df = pd.read_csv(io.StringIO(download.content.decode('utf-8')))
+        df["parameters"] = df["parameters"].apply(ast.literal_eval)
+        df["qcConfig"] = df["qcConfig"].apply(ast.literal_eval)
+        
+    # Next, filter for the desired parameter
+    mask = df["parameters"].apply(lambda x: True if x.get("inp") == ooinet_param else False)
+    df = df[mask]
+    
+    # Now filter for the desired stream
+    df = df[(df["subsite"] == subsite) & 
+            (df["node"] == node) & 
+            (df["sensor"] == sensor) &
+            (df["stream"] == stream)]
+    
+    return df
+
+def load_climatology_qartod_test_values(refdes, param):
+    """
+    Load the OOI climatology qartod test values table from gitHub
+    
+    Parameters
+    ----------
+    refdes: str
+        The reference designator for the given sensor
+    param: str
+        The name of the 
+    """
+    
+    site, node, sensor = refdes.split("-", 2)
+    sensor_type = sensor[3:8].lower()
+    
+    # gitHub url to the climatology tables
+    CLIMATOLOGY_URL = f"{GITHUB_BASE_URL}/{sensor_type}/climatology_tables/{refdes}-{param}.csv"
+    
+    # Download the results
+    download = requests.get(CLIMATOLOGY_URL)
+    if download.status_code == 200:
+        df = pd.read_csv(io.StringIO(download.content.decode('utf-8')), index_col=0)
+        df = df.applymap(ast.literal_eval)
+    else:
+        return None
+    return df
+
+def qartod_gross_range_test(refdes, stream, test_parameters, ds):
+    # Input:
+    #   refdes
+    #   stream
+    #   test_parameters
+    #   ds
+    #
+    # Returns:
+    #   gross_range_results
+
+    # Run through all of the parameters which had the QARTOD tests applied by OOINet and
+    # run the tests locally, saving the results in a dictionary
+    gross_range_results = {}
+    for param in test_parameters:
+        # Get the ooinet name
+        ooinet_name = test_parameters.get(param)
+        
+        # Load the gross_range_qartod_test_values from gitHub
+        gross_range_qartod_test_values = load_gross_range_qartod_test_values(refdes, stream, ooinet_name)
+        
+        # Get the qcConfig object, the fail_span, and the suspect_span
+        qcConfig = gross_range_qartod_test_values["qcConfig"].values[0]
+        fail_span = qcConfig.get("qartod").get("gross_range_test").get("fail_span")
+        suspect_span = qcConfig.get("qartod").get("gross_range_test").get("suspect_span")
+        
+        # Run the gross_range_tenst
+        param_results = gross_range_test(
+            inp = ds[param].values,
+            fail_span = fail_span,
+            suspect_span = suspect_span)
+        
+        # Save the results
+        gross_range_results.update(
+            {param: param_results}
+        )
+        
+    return gross_range_results
+
+def qartod_climatology_test(refdes, stream, test_parameters, ds):
+    # Input:
+    #   refdes
+    #   stream
+    #   test_parameters
+    #   ds
+    #
+    # Returns:
+    #   climatology_results
+
+    
+
+    # Run through all of the parameters which had the QARTOD tests applied by OOINet and
+    # run the tests locally, saving the results in a dictionary
+    climatology_results = {}
+
+    for param in test_parameters:
+        # Get the ooinet name
+        ooinet_name = test_parameters.get(param)
+
+        # This test uses the same fail span from the gross range test config
+        gross_range_qartod_test_values = load_gross_range_qartod_test_values(refdes, stream, ooinet_name)
+        qcConfig = gross_range_qartod_test_values["qcConfig"].values[0]
+        fail_span = qcConfig.get("qartod").get("gross_range_test").get("fail_span")
+        
+        # Load the gross_range_qartod_test_values from gitHub
+        climatology_qartod_test_values = load_climatology_qartod_test_values(refdes, ooinet_name)
+        
+        if climatology_qartod_test_values is None:
+            climatology_results.update({
+                param: "Not implemented."
+            })
+            continue
+        
+        # Initialize a climatology config object
+        c = ClimatologyConfig()
+        
+        # Iterate through the pressure ranges
+        for p_range in climatology_qartod_test_values.index:
+            # Get the pressure range
+            pmin, pmax = ast.literal_eval(p_range)
+
+            # Convert the pressure range values into a dictionary
+            p_values = climatology_qartod_test_values.loc[p_range].to_dict()
+
+            # Check the pressure values. If [0, 0], then set the range [0, 5000]
+            if pmax == 0:
+                pmax = 5000
+
+            for tspan in p_values.keys():
+                # Get the time span
+                tstart, tend = ast.literal_eval(tspan)
+
+                # Get the values associated with the time span
+                vmin, vmax = p_values.get(tspan)
+
+                # Add the test to the climatology config object
+                c.add(tspan=[tstart, tend],
+                    vspan=[vmin, vmax],
+                    fspan=[fail_span[0], fail_span[1]],
+                    zspan=[pmin, pmax],
+                    period="month")
+
+        # Run the climatology test
+        param_results = climatology_test(c,
+                                        inp=ds[param],
+                                        tinp=ds["time"],
+                                        zinp=ds["sea_water_pressure"])
+        
+        # Append the results
+        climatology_results.update({
+            param: param_results
+        })
+
+
+    return climatology_results
