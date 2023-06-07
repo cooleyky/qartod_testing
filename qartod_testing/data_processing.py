@@ -13,6 +13,8 @@ import numpy as np
 import netrc
 import requests
 import io
+import time
+import sys
 
 def build_data_path(refdes,method,stream,prefix,folder='interim',suffix='.nc'):
     # Input: 
@@ -131,6 +133,23 @@ def dev1_request(site, node, sensor, method, stream, params):
     # Build and send the data request
     r = requests.get(data_request_url, params=params, auth=(login, password))
     dev1_request = r.json()
+
+    # Wait until asynchronous request is completed before attempting to download data
+    print('Waiting for Dev 01 to process and prepare data request, this may take up to 20 minutes.')
+    url = [url for url in dev1_request['allURLs'] if re.match(r'.*async_results.*', url)][0]
+    check_complete = url + '/status.txt'
+    with tqdm(total=400, desc='Waiting', file=sys.stdout) as bar:
+        for i in range(400):
+            r = SESSION.get(check_complete)
+            bar.update()
+            bar.refresh()
+            if r.status_code == requests.codes.ok:
+                bar.n = 400
+                bar.last_print_n = 400
+                break
+            else:
+                time.sleep(3)
+
 
     # Download the NetCDF data files from the Dev01 thredds server and load into xarray dataset
     url = dev1_request['outputURL']
