@@ -22,4 +22,8 @@ dependencies:
   - pandas
   - netCDF4
   - pip
+  - ipykernel
+  - halo
+  - bs4
+  - munch
 prefix: C:\Users\cooleyky\Anaconda3\envs\qartod_test
