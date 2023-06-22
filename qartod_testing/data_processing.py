@@ -4,20 +4,29 @@ import xarray as xr
 import dask
 from dask.diagnostics import ProgressBar
 from ooinet import M2M
+from ooinet.M2M import login, password
 from ooinet.Instrument.common import process_file
 import ooi_data_explorations.common as common
-from ooi_data_explorations.common import SESSION
+# from ooi_data_explorations.common import SESSION
 import warnings
 from tqdm import tqdm
 import numpy as np
 import netrc
 import requests
+from requests.adapters import HTTPAdapter
 import io
 import time
 import sys
 import pandas as pd
 import ast
 from ioos_qc.qartod import gross_range_test, climatology_test, ClimatologyConfig
+from urllib3.util import Retry
+import stat
+
+SESSION = requests.Session()
+retry = Retry(connect=5, backoff_factor=0.5)
+adapter = HTTPAdapter(max_retries=retry)
+SESSION.mount('https://', adapter)
 
 def build_data_path(refdes,method,stream,prefix,folder='interim',suffix='.nc'):
     # Input: 
@@ -38,7 +47,7 @@ def build_data_path(refdes,method,stream,prefix,folder='interim',suffix='.nc'):
     
     return ds_path
 
-def ooinet_gold_copy_request(refdes, method, stream):
+def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     # Input:
     #   refdes: string containing the site, node, and sensor ID of interest separated by '-'
     #   method: string representing method of data retrieval, either 'recovered_inst', 'recovered_host', or 'telemetered'
@@ -49,12 +58,28 @@ def ooinet_gold_copy_request(refdes, method, stream):
     #
     # To-do: This function will also save the individual data files in the external data folder, organized by site, node, sensor from refdes 
 
-    # Generic preprocessing routine to do some generic dataset cleaning/processing
-    @dask.delayed
-    def preprocess(ds):
-        ds = xr.open_dataset(ds, chunks={})
-        ds = process_file(ds)
-        return ds
+    # Generic preprocessing routine to do some generic dataset cleaning/processing/saving
+    # def preprocess(file_url, folder_path, use_dask=False):
+    #     file_name = re.findall("deployment.*\.nc$", file_url)
+
+    #     r = SESSION.get(file_url, timeout=(3.05, 120), auth=(login, password))
+    #     if r.ok:
+    #         # load the data file
+    #         if use_dask:
+    #             ds = xr.open_dataset(io.BytesIO(r.content), decode_cf=False, chunks=10000)
+    #         else:
+    #             ds = xr.load_dataset(io.BytesIO(r.content), decode_cf=False)
+
+    #             # ds = M2M.get_api(ds)
+    #             # r = SESSION.get(ds, timeout=(3.05, 120))
+    #             # ds = xr.open_dataset(ds, chunks={})
+    #             ds = process_file(ds)
+    #             file_path = os.path.join(folder_path, file_name)
+    #             ds.to_netcdf(file_path)
+    #     else:
+    #         print("bad request")
+            
+    #     return
 
     # Use the gold copy THREDDs datasets
     thredds_url = M2M.get_thredds_url(refdes, method, stream, goldCopy=True)
@@ -69,24 +94,38 @@ def ooinet_gold_copy_request(refdes, method, stream):
     sensor_files = M2M.clean_catalog(thredds_catalog, stream, deployments) 
 
     # Now build the url to access the data
-    sensor_files = [re.sub("catalog.html\?dataset=", M2M.URLS["goldCopy_dodsC"], file) for file in sensor_files]
+    sensor_files = [re.sub("catalog.html\?dataset=", M2M.URLS["goldCopy_fileServer"], file) for file in sensor_files]
 
-    # preprocess the data
-    zs = [preprocess(file) for file in sensor_files]
+    # build path to folder where data will be saved
+    folder_path = os.path.join(os.path.abspath('../data/external'), method, stream, refdes)
+    # make folder if it does not already exist
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    os.chmod(folder_path, stat.S_IWRITE)
 
-    # Build path to folder where data files will be indiviually saved
-    # Still not sure how to do the file name
-    # filepath = build_data_path(refdes, method, stream, folder='external') 
-    # for # I messed up when I tried setting this up wit ds in dask.compute(*zs) because then data was not concatenating all of the data as I thought it would
-            # ds.to_netcdf(filepath) # come back to this when I get to the step of trying to save data files individually
+    # preprocess the data and save to disk
+    for file in tqdm(sensor_files, desc='Downloading and Processing Data Files'):
+        file_name = re.findall("deployment.*\.nc$", file)[0]
+        response = SESSION.get(file, timeout=(3.05, 120))
+        if response.ok:
+            # load the data file
+            if use_dask:
+                ds = xr.open_dataset(io.BytesIO(response.content), decode_cf=False, chunks=10000)
+            else:
+                ds = xr.load_dataset(io.BytesIO(response.content), decode_cf=False)
 
-    # Load all the datasets
-    with ProgressBar():
-            data = xr.concat([ds.chunk()for ds in dask.compute(*zs)], dim="time")
+                # ds = M2M.get_api(ds)
+                # r = SESSION.get(ds, timeout=(3.05, 120))
+                # ds = xr.open_dataset(ds, chunks={})
+            ds = process_file(ds)
+            file_path = os.path.join(folder_path, file_name)
+            # file_path = re.sub('c', 'C', file_path, 1)
+            ds.to_netcdf(file_path)
+        else:
+            print("bad request")
+    return sensor_files
 
-    return data
-
-def dev1_request(site, node, sensor, method, stream, params):
+def dev1_data_request(site, node, sensor, method, stream, params):
     # Input:
     #   refdes: string containing the site, node, and sensor ID of interest separated by '-'
     #   method: string representing method of data retrieval, either 'recovered_inst', 'recovered_host', or 'telemetered'
@@ -102,7 +141,7 @@ def dev1_request(site, node, sensor, method, stream, params):
     try:
         nrc = netrc.netrc()
         AUTH = nrc.authenticators('ooinet-dev1-west.intra.oceanobservatories.org')
-        login, password = AUTH[0], AUTH[2]
+        devlogin, devpassword = AUTH[0], AUTH[2]
         if AUTH is None:
             raise RuntimeError(
                 'No entry found for machine ``ooinet-dev1-west.oceanobservatories.org`` in the .netrc file')
@@ -134,7 +173,7 @@ def dev1_request(site, node, sensor, method, stream, params):
     params = params
 
     # Build and send the data request
-    r = requests.get(data_request_url, params=params, auth=(login, password))
+    r = requests.get(data_request_url, params=params, auth=(devlogin, devpassword))
     dev1_request = r.json()
 
     # Wait until asynchronous request is completed before attempting to download data

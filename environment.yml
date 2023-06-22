@@ -8,7 +8,7 @@ dependencies:
   - openssl
   - yaml
   - pyopenssl
-  - python
+  - python=3.11.4
   - numpy
   - pyyaml
   - python-dateutil
@@ -16,6 +16,7 @@ dependencies:
   - xarray
   - pandas
   - dask
+  - distributed=2023.6.0
   - ioos_qc
   - matplotlib
   - tqdm
@@ -26,4 +27,6 @@ dependencies:
   - halo
   - bs4
   - munch
-prefix: C:\Users\cooleyky\Anaconda3\envs\qartod_test
+  - h5pyd
+  - urllib3
+  - chardet
