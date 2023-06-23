@@ -58,29 +58,6 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     #
     # To-do: This function will also save the individual data files in the external data folder, organized by site, node, sensor from refdes 
 
-    # Generic preprocessing routine to do some generic dataset cleaning/processing/saving
-    # def preprocess(file_url, folder_path, use_dask=False):
-    #     file_name = re.findall("deployment.*\.nc$", file_url)
-
-    #     r = SESSION.get(file_url, timeout=(3.05, 120), auth=(login, password))
-    #     if r.ok:
-    #         # load the data file
-    #         if use_dask:
-    #             ds = xr.open_dataset(io.BytesIO(r.content), decode_cf=False, chunks=10000)
-    #         else:
-    #             ds = xr.load_dataset(io.BytesIO(r.content), decode_cf=False)
-
-    #             # ds = M2M.get_api(ds)
-    #             # r = SESSION.get(ds, timeout=(3.05, 120))
-    #             # ds = xr.open_dataset(ds, chunks={})
-    #             ds = process_file(ds)
-    #             file_path = os.path.join(folder_path, file_name)
-    #             ds.to_netcdf(file_path)
-    #     else:
-    #         print("bad request")
-            
-    #     return
-
     # Use the gold copy THREDDs datasets
     thredds_url = M2M.get_thredds_url(refdes, method, stream, goldCopy=True)
 
@@ -101,7 +78,6 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     # make folder if it does not already exist
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
-    os.chmod(folder_path, stat.S_IWRITE)
 
     # preprocess the data and save to disk
     for file in tqdm(sensor_files, desc='Downloading and Processing Data Files'):
@@ -114,15 +90,12 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
             else:
                 ds = xr.load_dataset(io.BytesIO(response.content), decode_cf=False)
 
-                # ds = M2M.get_api(ds)
-                # r = SESSION.get(ds, timeout=(3.05, 120))
-                # ds = xr.open_dataset(ds, chunks={})
+            # Preprocess downloaded data
             ds = process_file(ds)
             file_path = os.path.join(folder_path, file_name)
-            # file_path = re.sub('c', 'C', file_path, 1)
             ds.to_netcdf(file_path)
         else:
-            print("bad request")
+            print("Bad request: unable to download file %s" % file_name)
     return sensor_files
 
 def dev1_data_request(site, node, sensor, method, stream, params):
