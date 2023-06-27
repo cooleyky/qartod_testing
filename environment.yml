@@ -8,7 +8,7 @@ dependencies:
   - openssl
   - yaml
   - pyopenssl
-  - python=3.11.4
+  - python=3.11.3
   - numpy
   - pyyaml
   - python-dateutil
@@ -28,6 +28,7 @@ dependencies:
   - bs4
   - munch
   - h5pyd
+  - h5netcdf
   - urllib3
   - chardet
   - conda-build

@@ -4,10 +4,8 @@ import xarray as xr
 import dask
 from dask.diagnostics import ProgressBar
 from ooinet import M2M
-from ooinet.M2M import login, password
 from ooinet.Instrument.common import process_file
 import ooi_data_explorations.common as common
-# from ooi_data_explorations.common import SESSION
 import warnings
 from tqdm import tqdm
 import numpy as np
@@ -28,18 +26,18 @@ retry = Retry(connect=5, backoff_factor=0.5)
 adapter = HTTPAdapter(max_retries=retry)
 SESSION.mount('https://', adapter)
 
-def build_data_path(refdes,method,stream,prefix,folder='interim',suffix='.nc'):
+def build_data_path(refdes,method,stream,prefix='',folder='interim',suffix='.nc'):
     # Input: 
     #   refdes: string built from OOI site, node, and sensor for chosen dataset
     #   method: 'recovered_inst', 'recovered_host', or 'telemetered'(?) 
     #   stream: name of data stream 
-    #   source: 'prod' or 'dev'
+    #   prefix: usually 'prod' or 'dev', but empty by default
     #   folder: 'interim' (default), 'processed', 'raw', or 'external'
     #
     # Returns:
     #   ds_path: relative path to dataset from notebook folder
     
-    filename = '-'.join((prefix,refdes,method,stream))+suffix              # build filename from dataset type and source
+    filename = '-'.join((prefix,refdes,method,stream))+suffix           # build filename from dataset type and source
 
     data_folder = os.path.relpath('../data')                            # path to data folder from notebook folder
 
@@ -66,8 +64,8 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     deployments = M2M.get_deployments(refdes)
 
     # Clean the THREDDs catalog
-    # This step separates entries from thredds_catalog if they do not match the stream. These ancillary files are usually provided 
-    # because they are used in calculating a derived variable from the measured variable stream.
+    # This step separates entries from thredds_catalog if they do not match the instrument stream. Ancillary files are usually provided 
+    # in a request because they are used in calculating a derived variable from the measured variable stream.
     sensor_files = M2M.clean_catalog(thredds_catalog, stream, deployments) 
 
     # Now build the url to access the data
@@ -75,9 +73,9 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
 
     # build path to folder where data will be saved
     folder_path = os.path.join(os.path.abspath('../data/external'), method, stream, refdes)
+    
     # make folder if it does not already exist
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
+    os.makedirs(folder_path, exist_ok=True)
 
     # preprocess the data and save to disk
     for file in tqdm(sensor_files, desc='Downloading and Processing Data Files'):
@@ -89,7 +87,6 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
                 ds = xr.open_dataset(io.BytesIO(response.content), decode_cf=False, chunks=10000)
             else:
                 ds = xr.load_dataset(io.BytesIO(response.content), decode_cf=False)
-
             # Preprocess downloaded data
             ds = process_file(ds)
             file_path = os.path.join(folder_path, file_name)
@@ -110,7 +107,7 @@ def dev1_data_request(site, node, sensor, method, stream, params):
     # To-do: This function will also save the individual data files in the external data folder, organized by site, node, sensor from refdes 
 
     # Initialize credentials for dev1 server
-    # This process is borrowed from ooinet.M2M
+    # This process is borrowed from ooinet.M2M module
     try:
         nrc = netrc.netrc()
         AUTH = nrc.authenticators('ooinet-dev1-west.intra.oceanobservatories.org')
@@ -120,7 +117,6 @@ def dev1_data_request(site, node, sensor, method, stream, params):
                 'No entry found for machine ``ooinet-dev1-west.oceanobservatories.org`` in the .netrc file')
     except FileNotFoundError as e:
         raise OSError(e, os.strerror(e.errno), os.path.expanduser('~'))
-
 
     # Sub in ooinet-dev1-west.intra.oceanobservatories.org into the avaialbe API urls
     Dev01_urls = {}

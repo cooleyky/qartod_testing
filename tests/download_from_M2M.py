@@ -1,3 +1,5 @@
+# Note: this is not a test of any qartod_testing project functions, just a test that the contents of the gold copy request function work together as expected for one deployment of an example instrument
+
 # Import libraries
 import xarray as xr
 import os

@@ -52,11 +52,23 @@ The following commands will add the paths to ooi_data_explorations and OOINet mo
 
 Where `.` denotes the current working directory.
 
+### Setup credentials for M2M data requests
+In your home directory, you can save your M2M credentials in a text file named `.netrc`. The OOINet M2M module uses the netrc library to retrieve credentials from this file so that they don't have to be entered manually for every request. The text in this file should be formatted as follows:
+    
+       machine ooinet.oceanobservatories.org
+           login <YOUR-OOI-API-USERNAME>
+           password <YOUR-API-TOKEN>
+           
+If you have access to Dev-1 and intend to work with data from that server as well, you will need another similar entry with the server web address in place of ooinet.oceanobservatories.org. More detailed information on setting up this file can be found here: https://github.com/oceanobservatories/ooi-data-explorations/tree/master/python#access-credentials
+
 ### Working from a branch in your forked repository
 Whether you're planning on just trying out the included notebooks in this repository or adding a feature that you will want to push to this project later, working within a uniquely-named branch of your fork will save you from headache and confusion down the road. This can be done from either the terminal or in the GitHub Desktop program. I've found that the most useful branch names are brief, descriptive names of the feature I want to add or change, or I will use an overall goal for working with this respository.
 
 ### Using your qartod_test environment in Jupyter Notebooks
-Now that the environment is set up and you have a specific branch to work from, you'll need to choose a kernel when you run a notebook for the first time. You'll choose the kernel that is named the same as the qartod_test environment. This way, all modules that will be imported into the notebooks in this repository are already installed in the environment being used.
+Now that the environment is set up and you have a specific branch to work from, you'll need to choose a kernel when you run a notebook for the first time. You'll choose the kernel that is named the same as the qartod_test environment. This way, all modules that will be imported into the notebooks in this repository are already installed in the environment being used. If the `qartod_test` environment is not automagically added as a kernel option, you can add it from a terminal with the following command: `python -m ipykernel install --user --name=qartod_test`
+
+### Tip for managing your environment
+If you need to add multiple packages to the environment after you have already created it, using `conda install` can quickly result in a "broken" environment if conda cannot resolve incompatible packages. The first step is making sure that you add new dependencies to environment.yml. Next, you can either install individual packages with pip or update the environment from the edited environment file with conda via `conda env update -f environment.yml` once the qartod_test environment is activated.
 
 --------
 [^1]: These directions are modified from https://github.com/oceanobservatories/ooi-data-explorations/tree/master/python#obtaining-the-code-and-configuring-the-environment
