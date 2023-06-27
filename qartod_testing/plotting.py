@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
     @author Kylene Cooley
-    @brief manipulates OOI time series coordinates to improve plotting
+    @brief facilitates plotting by manipulating OOI data sets
 """
 
 import xarray as xr
