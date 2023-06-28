@@ -421,7 +421,7 @@ def qartod_climatology_test(refdes, stream, test_parameters, ds):
                     fspan=[fail_span[0], fail_span[1]],
                     zspan=[pmin, pmax],
                     period="month")
-
+                print([pmin, pmax])
         # Run the climatology test
         param_results = climatology_test(c,
                                         inp=ds[param],
