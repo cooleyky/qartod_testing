@@ -6,6 +6,7 @@ from dask.diagnostics import ProgressBar
 from ooinet import M2M
 from ooinet.Instrument.common import process_file
 import ooi_data_explorations.common as common
+from ooi_data_explorations.common import ENCODINGS
 import warnings
 from tqdm import tqdm
 import numpy as np
@@ -89,6 +90,8 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
                 ds = xr.load_dataset(io.BytesIO(response.content), decode_cf=False)
             # Preprocess downloaded data
             ds = process_file(ds)
+            if 'serial_number' in ds.variables:
+                ds = ds.drop_vars('serial_number')
             file_path = os.path.join(folder_path, file_name)
             ds.to_netcdf(file_path)
         else:
@@ -407,6 +410,8 @@ def qartod_climatology_test(refdes, stream, test_parameters, ds):
             # Check the pressure values. If [0, 0], then set the range [0, 5000]
             if pmax == 0:
                 pmax = 5000
+                # if "sea_water_pressure" not in ds.variables:
+                #     ds["sea_water_pressure"] = [0, 0]
 
             for tspan in p_values.keys():
                 # Get the time span
@@ -419,14 +424,14 @@ def qartod_climatology_test(refdes, stream, test_parameters, ds):
                 c.add(tspan=[tstart, tend],
                     vspan=[vmin, vmax],
                     fspan=[fail_span[0], fail_span[1]],
-                    zspan=[pmin, pmax],
                     period="month")
-                print([pmin, pmax])
+                # print([pmin, pmax])
         # Run the climatology test
+        time = ds["time"].to_numpy()
         param_results = climatology_test(c,
                                         inp=ds[param],
-                                        tinp=ds["time"],
-                                        zinp=ds["sea_water_pressure"])
+                                        tinp=time,
+                                        zinp=np.full_like(ds[param], np.nan))
         
         # Append the results
         climatology_results.update({
