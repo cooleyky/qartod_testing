@@ -440,3 +440,247 @@ def qartod_climatology_test(refdes, stream, test_parameters, ds):
 
 
     return climatology_results
+
+def parse_qartod_executed(ds, parameters):
+    """
+    Parses the qartod tests for the given parameter into separate variables.
+    
+    Parameters
+    ----------
+    ds: xarray.DataSet
+        The dataset downloaded from OOI with the QARTOD flags applied.
+    parameters: list[str]
+        The name of the parameters in the dataset to parse the QARTOD flags
+        
+    Returns
+    -------
+    ds: xarray.DataSet
+        The dataset with the QARTOD test for the given parameters split out
+        into new seperate data variables using the naming convention:
+        {parameter}_qartod_{test_name}
+    """
+    # For the params into a list if only a string
+    if type(parameters) is not list:
+        parameters = list(parameters)
+    
+    # Iterate through each parameter
+    for param in parameters:
+        # Generate the qartod executed name
+        qartod_name = f"{param}_qartod_executed"
+        
+        if qartod_name not in ds.variables:
+            continue
+    
+        # Fix the test types
+        ds[qartod_name] = ds[qartod_name].astype(str)
+    
+        # Get the test order
+        test_order = ds[qartod_name].attrs["tests_executed"].split(",")
+    
+        # Iterate through the available tests and create separate variables with the results
+        for test in test_order:
+            test_index = test_order.index(test)
+            test_name = f"{param}_qartod_{test.strip()}"
+            ds[test_name] = ds[qartod_name].str.get(test_index)
+
+    return ds
+
+def get_test_parameters(ds):
+    # Create a dictionary of key-value pairs of dataset variable name:alternate parameter name for parameters that have undergone QARTOD testing.
+    test_parameters={}
+    for var in ds.variables:
+        if "qartod_results" in var:
+            # Get the parameter name
+            param = var.split("_qartod")[0]
+
+            # Check if the parameter has an alternative ooinet_name
+            if "alternate_parameter_name" in ds[param].attrs:
+                ooinet_name = ds[param].attrs["alternate_parameter_name"]
+            else:
+                ooinet_name = param
+
+            # Save the results in a dictionary
+            test_parameters.update({
+                param: ooinet_name
+            })
+    # Print out the results
+    return test_parameters
+
+def run_comparison(ds, param, test_results):
+    """
+    Andrew's example:
+    Runs a comparison between the qartod gross range results returned as part of the dataset
+    and results calculated locally.
+    """
+    # Get the local test results and convert to string type for comparison
+    local_results = test_results[param].astype(str)
+    
+    # Run comparison
+    not_equal = np.where(ds[f"{param}_qartod_gross_range_test"] != local_results)[0]
+    
+    if len(not_equal) == 0:
+        return None
+    else:
+        return not_equal
+    
+def qartod_results_summary(ds, params, test):
+    """
+    Calculate the statistics for parameter qartod flags.
+    
+    This function takes in a list of the parameters and
+    the associated QARTOD tests to calculate the number
+    of each flag and the percent of the flag.
+    
+    Parameters
+    ----------
+    ds: xarray.DataSet
+        An xarray dataset which contains the data
+    params: list[strings]
+        A list of the variables/parameters in the given
+        dataset that have been tested with QARTOD
+    tests: list[strings]
+        A list of the QARTOD test names which to parse
+        for the given parameters.
+        
+    Returns
+    -------
+    results: dict
+        A dictionary which contains the number of each
+        QARTOD flag and the percent of the total flags
+        for each test applied to each parameter in the
+        given dataset.
+        
+        results = {'parameter':
+                        {'test_name':
+                            {'total data points': int,
+                            'good data points': (int, %),
+                            'suspect data points': (int, %),
+                            'bad data points': (int, %)}
+                            },
+                        }
+    """
+    # Check that the inputs are a list
+    if type(params) is not list:
+        params = [params]
+            
+    # Initialize the result dictionary and iterate 
+    # through the parameters for each test
+    results = {}
+    for param in params:
+        
+        # Now iterate through each test
+        test_results = {}
+        
+            
+        # First, check that the test was applied
+        test_name = f"{param}_qartod_{test}_test"
+        if test_name not in ds.variables:
+            continue
+            
+        # Count the total number of values
+        n = ds[test_name].count().compute().values
+        
+        # First calculate the gross range results
+        good = np.where(ds[test_name] == "1")[0]
+
+        # Count the number of suspect/interesting
+        suspect = np.where(ds[test_name] == "3")[0]
+
+        # Count the number of fails
+        bad = np.where(ds[test_name] == "4'")[0]
+
+        test_results.update({"total": int(n),
+                "good": (len(good), np.round(len(good)/n*100, 2)),
+                "suspect": (len(suspect), np.round(len(suspect)/n*100, 2)),
+                "fail": (len(bad), np.round(len(bad)/n*100, 2))
+            
+            }
+        )
+        
+        # Save the test results for each parameter
+        results.update({
+            param: test_results
+        })
+    
+    return results
+
+def qartod_summary_expanded(ds, params, test):
+    """
+    Calculate the statistics for parameter qartod flags.
+    
+    This function takes in a list of the parameters and
+    the associated QARTOD tests to calculate the number
+    of each flag and the percent of the flag.
+    
+    Parameters
+    ----------
+    ds: xarray.DataSet
+        An xarray dataset which contains the data
+    params: list[strings]
+        A list of the variables/parameters in the given
+        dataset that have been tested with QARTOD
+    tests: list[strings]
+        A list of the QARTOD test names which to parse
+        for the given parameters.
+        
+    Returns
+    -------
+    results: dict
+        A dictionary which contains the number of each
+        QARTOD flag and the percent of the total flags
+        for each test applied to each parameter in the
+        given dataset.
+        
+        results = {'parameter':
+                        {'test_name':
+                            {'total data points': int,
+                            'good data points': (int, %),
+                            'suspect data points': (int, %),
+                            'bad data points': (int, %)}
+                            },
+                        }
+    """
+    # Check that the inputs are a list
+    if type(params) is not list:
+        params = [params]
+            
+    # Initialize the result dictionary and iterate 
+    # through the parameters for each test
+    results = {}
+    for param in params:
+        
+        # Now iterate through each test
+        # test_results = {}
+        
+            
+        # First, check that the test was applied
+        test_name = f"{param}_qartod_{test}_test"
+        if test_name not in ds.variables:
+            continue
+            
+        # Count the total number of values
+        n = ds[test_name].count().compute().values
+        
+        # First calculate the gross range results
+        good = np.where(ds[test_name] == "1")[0]
+
+        # Count the number of suspect/interesting
+        suspect = np.where(ds[test_name] == "3")[0]
+
+        # Count the number of fails
+        bad = np.where(ds[test_name] == "4'")[0]
+
+        results.update({f"{param} total": int(n),
+                f"{param} good": (len(good), np.round(len(good)/n*100, 2)),
+                f"{param} suspect": (len(suspect), np.round(len(suspect)/n*100, 2)),
+                f"{param} fail": (len(bad), np.round(len(bad)/n*100, 2))
+            
+            }
+        )
+        
+#         # Save the test results for each parameter
+#         results.update({
+#             param: test_results
+#         })
+    
+    return results
