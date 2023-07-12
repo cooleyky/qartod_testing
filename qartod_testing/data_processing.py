@@ -506,17 +506,20 @@ def get_test_parameters(ds):
     # Print out the results
     return test_parameters
 
-def run_comparison(ds, param, test_results):
+def run_comparison(ds, param, test_results, test):
     """
     Andrew's example:
     Runs a comparison between the qartod gross range results returned as part of the dataset
     and results calculated locally.
+    
+    edit:
+        added parameter - test: string "gross_range" or "climatology" for test name to compare
     """
     # Get the local test results and convert to string type for comparison
     local_results = test_results[param].astype(str)
     
     # Run comparison
-    not_equal = np.where(ds[f"{param}_qartod_gross_range_test"] != local_results)[0]
+    not_equal = np.where(ds[f"{param}_qartod_{test}_test"] != local_results)[0]
     
     if len(not_equal) == 0:
         return None
@@ -604,7 +607,7 @@ def qartod_results_summary(ds, params, test):
     
     return results
 
-def qartod_summary_expanded(ds, params, test):
+def qartod_summary_expanded(ds, params, deployment, test):
     """
     Calculate the statistics for parameter qartod flags.
     
@@ -644,14 +647,14 @@ def qartod_summary_expanded(ds, params, test):
     if type(params) is not list:
         params = [params]
             
-    # Initialize the result dictionary and iterate 
-    # through the parameters for each test
+    # Initialize the result dictionary 
     results = {}
+    
+    # add key for deployment to results dictionary
+    results.update({"deployment" : f"{deployment}" })   
+    
+    # iterate through the parameters for each test
     for param in params:
-        
-        # Now iterate through each test
-        # test_results = {}
-        
             
         # First, check that the test was applied
         test_name = f"{param}_qartod_{test}_test"
@@ -671,16 +674,48 @@ def qartod_summary_expanded(ds, params, test):
         bad = np.where(ds[test_name] == "4'")[0]
 
         results.update({f"{param} total": int(n),
-                f"{param} good": (len(good), np.round(len(good)/n*100, 2)),
-                f"{param} suspect": (len(suspect), np.round(len(suspect)/n*100, 2)),
-                f"{param} fail": (len(bad), np.round(len(bad)/n*100, 2))
+                f"{param.split('_')[-1]} good": (len(good), np.round(len(good)/n*100, 2)),
+                f"{param.split('_')[-1]} suspect": (len(suspect), np.round(len(suspect)/n*100, 2)),
+                f"{param.split('_')[-1]} fail": (len(bad), np.round(len(bad)/n*100, 2))
             
             }
-        )
-        
-#         # Save the test results for each parameter
-#         results.update({
-#             param: test_results
-#         })
-    
+        )     
     return results
+
+def get_mismatched_flags(expected_ds, local_ds, parameters, deployment, test):
+    """
+    Arguments:
+        expected_ds: Xarray Dataset with flags for different QARTOD tests parsed into separate variables
+        local_ds: Xarray Dataset containing only the resulting flags from running the QARTOD test locally
+        mismatch: dictionary that will hold the results of the comparison
+        deployment: 2-character string for the deployment number of the subsite
+        test: string of the test to use for comparison, either "gross_range" or "climatology"
+    ---------------
+    Returns:
+        mismatch: the updated dictionary with results of the comparison for the current test and deployment added
+        
+    Version 12 July 2023, Kylene M Cooley
+    """
+    # initialize dictionary to hold results of comparison and update with current deployment
+    mismatch = {}
+    mismatch.update({ "deployment" : f"{deployment}" })
+    
+    # Loop through parameters while updating dictionaries for mismatched flags
+    for param in parameters:
+
+        # Evaluate comparison of local test and expected test flags to update dictionary of differences in the results
+        print("Checking for mismatched QARTOD flags in "f"{param}")
+        flag_mismatch = run_comparison(expected_ds, param, local_ds, test)
+
+        if flag_mismatch is None:
+            print("No mismatched values found")
+            mismatch.update({ f"{param}" : np.nan })
+
+        else:
+            mismatch.update({ f"{param}": {
+                    'datetimes' : expected_ds['time'][flag_mismatch].values,
+                    'expected_flags' : expected_ds[f"{param}_qartod_{test}_test"][flag_mismatch].values,
+                    'local_flags' : local_ds[param][flag_mismatch].values,
+                    'file_name' : f"{expected_file}"
+            }})
+    return mismatch
