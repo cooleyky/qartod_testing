@@ -22,21 +22,33 @@ from ioos_qc.qartod import gross_range_test, climatology_test, ClimatologyConfig
 from urllib3.util import Retry
 import stat
 
+# Initialize Session object for M2M data requests
 SESSION = requests.Session()
 retry = Retry(connect=5, backoff_factor=0.5)
 adapter = HTTPAdapter(max_retries=retry)
 SESSION.mount('https://', adapter)
 
 def build_data_path(refdes,method,stream,prefix='',folder='interim',suffix='.nc'):
-    # Input: 
-    #   refdes: string built from OOI site, node, and sensor for chosen dataset
-    #   method: 'recovered_inst', 'recovered_host', or 'telemetered'(?) 
-    #   stream: name of data stream 
-    #   prefix: usually 'prod' or 'dev', but empty by default
-    #   folder: 'interim' (default), 'processed', 'raw', or 'external'
-    #
-    # Returns:
-    #   ds_path: relative path to dataset from notebook folder
+    """ Returns data path for opening or saving datasets for a particular sensor.
+    
+    Parameters
+    ----------
+        refdes: string 
+            built from OOI site, node, and sensor for chosen dataset
+        method: string
+            'recovered_inst', 'recovered_host', or 'telemetered'(?) 
+        stream: string
+            name of data stream 
+        prefix: string
+            usually 'prod' or 'dev', but empty by default
+        folder: string
+            'interim' (default), 'processed', 'raw', or 'external'
+    
+    Returns
+    -------
+        ds_path: Path object
+             absolute path to dataset
+    """
     
     filename = '-'.join((prefix,refdes,method,stream))+suffix           # build filename from dataset type and source
 
@@ -47,15 +59,23 @@ def build_data_path(refdes,method,stream,prefix='',folder='interim',suffix='.nc'
     return ds_path
 
 def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
-    # Input:
-    #   refdes: string containing the site, node, and sensor ID of interest separated by '-'
-    #   method: string representing method of data retrieval, either 'recovered_inst', 'recovered_host', or 'telemetered'
-    #   stream: string for resulting data product from given method of data retrieval
-    #
-    # Returns:
-    #   data: xarray Dataset containing the concatenated and preprocessed data files
-    #
-    # To-do: This function will also save the individual data files in the external data folder, organized by site, node, sensor from refdes 
+    """ Requests gold copy data via M2M, downloads requested datasets, and saves files containing 
+    a single deployment in the external data folder.
+    
+    Parameters
+    ----------
+      refdes: string 
+          Contains the site, node, and sensor ID of interest separated by '-'
+      method: string 
+          Represents method of data retrieval, either 'recovered_inst', 'recovered_host', or 'telemetered'
+      stream: string
+          Describes data product from given method of data retrieval, set by OOI
+    
+    Returns
+    -------
+      sensor_files: list
+          Names of files that were requested and downloaded
+    """
 
     # Use the gold copy THREDDs datasets
     thredds_url = M2M.get_thredds_url(refdes, method, stream, goldCopy=True)
@@ -64,9 +84,7 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     thredds_catalog = M2M.get_thredds_catalog(thredds_url)
     deployments = M2M.get_deployments(refdes)
 
-    # Clean the THREDDs catalog
-    # This step separates entries from thredds_catalog if they do not match the instrument stream. Ancillary files are usually provided 
-    # in a request because they are used in calculating a derived variable from the measured variable stream.
+    # Remove ancillary files from list of files from THREDDs catalog
     sensor_files = M2M.clean_catalog(thredds_catalog, stream, deployments) 
 
     # Now build the url to access the data
@@ -432,6 +450,10 @@ def qartod_climatology_test(refdes, stream, test_parameters, ds):
                                         inp=ds[param],
                                         tinp=time,
                                         zinp=np.full_like(ds[param], np.nan))
+        # param_results = climatology_test(c,
+        #                                 inp=ds[param],
+        #                                 tinp=time,
+        #                                 zinp=ds['sea_water_pressure'])
         
         # Append the results
         climatology_results.update({
@@ -659,30 +681,35 @@ def qartod_summary_expanded(ds, params, deployment, test):
         # First, check that the test was applied
         test_name = f"{param}_qartod_{test}_test"
         if test_name not in ds.variables:
-            continue
+            results.update({f"{param} total": "NaN",
+                    f"{param.split('_')[-1]} good": "NaN",
+                    f"{param.split('_')[-1]} suspect": "NaN",
+                    f"{param.split('_')[-1]} fail": "NaN"
+                    })
+
             
-        # Count the total number of values
-        n = ds[test_name].count().compute().values
-        
-        # First calculate the gross range results
-        good = np.where(ds[test_name] == "1")[0]
+        else:    
+            # Count the total number of values
+            n = ds[test_name].count().compute().values
 
-        # Count the number of suspect/interesting
-        suspect = np.where(ds[test_name] == "3")[0]
+            # First calculate the gross range results
+            good = np.where(ds[test_name] == "1")[0]
 
-        # Count the number of fails
-        bad = np.where(ds[test_name] == "4'")[0]
+            # Count the number of suspect/interesting
+            suspect = np.where(ds[test_name] == "3")[0]
 
-        results.update({f"{param} total": int(n),
-                f"{param.split('_')[-1]} good": (len(good), np.round(len(good)/n*100, 2)),
-                f"{param.split('_')[-1]} suspect": (len(suspect), np.round(len(suspect)/n*100, 2)),
-                f"{param.split('_')[-1]} fail": (len(bad), np.round(len(bad)/n*100, 2))
+            # Count the number of fails
+            bad = np.where(ds[test_name] == "4'")[0]
+
+            results.update({f"{param} total": int(n),
+                    f"{param.split('_')[-1]} good": (len(good), np.round(len(good)/n*100, 2)),
+                    f"{param.split('_')[-1]} suspect": (len(suspect), np.round(len(suspect)/n*100, 2)),
+                    f"{param.split('_')[-1]} fail": (len(bad), np.round(len(bad)/n*100, 2))
+                    })
             
-            }
-        )     
     return results
 
-def get_mismatched_flags(expected_ds, local_ds, parameters, deployment, test):
+def get_mismatched_flags(expected_ds, local_ds, parameters, deployment, test, expected_file):
     """
     Arguments:
         expected_ds: Xarray Dataset with flags for different QARTOD tests parsed into separate variables
@@ -703,19 +730,27 @@ def get_mismatched_flags(expected_ds, local_ds, parameters, deployment, test):
     # Loop through parameters while updating dictionaries for mismatched flags
     for param in parameters:
 
-        # Evaluate comparison of local test and expected test flags to update dictionary of differences in the results
-        print("Checking for mismatched QARTOD flags in "f"{param}")
-        flag_mismatch = run_comparison(expected_ds, param, local_ds, test)
-
-        if flag_mismatch is None:
-            print("No mismatched values found")
+        # First, check that the test was applied
+        test_name = f"{param}_qartod_{test}_test"
+        if test_name not in expected_ds.variables:
+            print(f"{test_name} not implemented")
             mismatch.update({ f"{param}" : np.nan })
-
+        
         else:
-            mismatch.update({ f"{param}": {
-                    'datetimes' : expected_ds['time'][flag_mismatch].values,
-                    'expected_flags' : expected_ds[f"{param}_qartod_{test}_test"][flag_mismatch].values,
-                    'local_flags' : local_ds[param][flag_mismatch].values,
-                    'file_name' : f"{expected_file}"
-            }})
+            # Evaluate comparison of local test and expected test flags to update dictionary of differences in the results
+            print("Checking for mismatched QARTOD flags in "f"{param}")
+            flag_mismatch = run_comparison(expected_ds, param, local_ds, test)
+
+            if flag_mismatch is None:
+                print("No mismatched values found")
+                mismatch.update({ f"{param}" : np.nan })
+
+            else:
+                mismatch.update({ f"{param}": {
+                        'total' : f"{len(flag_mismatch)} ({round(100*len(flag_mismatch)/len(expected_ds['time']))}%)",
+                        'datetimes' : expected_ds['time'][flag_mismatch].values,
+                        'expected_flags' : expected_ds[f"{param}_qartod_{test}_test"][flag_mismatch].values,
+                        'local_flags' : local_ds[param][flag_mismatch].values,
+                        'file_name' : f"{expected_file}"
+                }})
     return mismatch
