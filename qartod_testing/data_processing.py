@@ -652,18 +652,20 @@ def qartod_summary_expanded(ds, params, deployment, test):
     -------
     results: dict
         A dictionary which contains the number of each
-        QARTOD flag and the percent of the total flags
-        for each test applied to each parameter in the
+        QARTOD flag and the percent of the total flags of each parameter
+        for which the specified test was applied to the
         given dataset.
         
-        results = {'parameter':
-                        {'test_name':
-                            {'total data points': int,
-                            'good data points': (int, %),
-                            'suspect data points': (int, %),
-                            'bad data points': (int, %)}
-                            },
-                        }
+        results = {'deployment': int,
+                    'test_name total flags': int,
+                    'good flags': int,
+                    'good %': int,
+                    'suspect flags': int,
+                    'suspect %': int,
+                    'bad flags': int,
+                    'bad %': int,...}
+    
+    Version 26 July 2023, Kylene M Cooley
     """
     # Check that the inputs are a list
     if type(params) is not list:
@@ -683,8 +685,11 @@ def qartod_summary_expanded(ds, params, deployment, test):
         if test_name not in ds.variables:
             results.update({f"{param} total": "NaN",
                     f"{param.split('_')[-1]} good": "NaN",
+                    f"{param.split('_')[-1]} good %": "NaN",
                     f"{param.split('_')[-1]} suspect": "NaN",
-                    f"{param.split('_')[-1]} fail": "NaN"
+                    f"{param.split('_')[-1]} suspect %": "NaN",
+                    f"{param.split('_')[-1]} fail": "NaN",
+                    f"{param.split('_')[-1]} fail %": "NaN"
                     })
 
             
@@ -702,15 +707,20 @@ def qartod_summary_expanded(ds, params, deployment, test):
             bad = np.where(ds[test_name] == "4'")[0]
 
             results.update({f"{param} total": int(n),
-                    f"{param.split('_')[-1]} good": (len(good), np.round(len(good)/n*100, 2)),
-                    f"{param.split('_')[-1]} suspect": (len(suspect), np.round(len(suspect)/n*100, 2)),
-                    f"{param.split('_')[-1]} fail": (len(bad), np.round(len(bad)/n*100, 2))
+                    f"{param.split('_')[-1]} good": len(good),
+                    f"{param.split('_')[-1]} good %": np.round(len(good)/n*100, 2),
+                    f"{param.split('_')[-1]} suspect": len(suspect),
+                    f"{param.split('_')[-1]} suspect %": np.round(len(suspect)/n*100, 2),
+                    f"{param.split('_')[-1]} fail": len(bad),
+                    f"{param.split('_')[-1]} fail %": np.round(len(bad)/n*100, 2)
                     })
             
     return results
 
 def get_mismatched_flags(expected_ds, local_ds, parameters, deployment, test, expected_file):
     """
+    Runs comparison of local and expected QARTOD test flags, then exports local flags, expected flags, expected parameter value, and the corresponding datetime for any mismatched flags as an Xarray Dataset. Also adds percentage of total flags that disagree to a summary dictionary.
+    
     Arguments:
         expected_ds: Xarray Dataset with flags for different QARTOD tests parsed into separate variables
         local_ds: Xarray Dataset containing only the resulting flags from running the QARTOD test locally
@@ -719,9 +729,9 @@ def get_mismatched_flags(expected_ds, local_ds, parameters, deployment, test, ex
         test: string of the test to use for comparison, either "gross_range" or "climatology"
     ---------------
     Returns:
-        mismatch: the updated dictionary with results of the comparison for the current test and deployment added
+        mismatch: the updated dictionary with percentage of all flags in local QARTOD test that don't match expected QARTOD test flags for the current test and deployment
         
-    Version 12 July 2023, Kylene M Cooley
+    Version 26 July 2023, Kylene M Cooley
     """
     # initialize dictionary to hold results of comparison and update with current deployment
     mismatch = {}
@@ -746,11 +756,34 @@ def get_mismatched_flags(expected_ds, local_ds, parameters, deployment, test, ex
                 mismatch.update({ f"{param}" : np.nan })
 
             else:
+                # Check if the parameter has an alternative ooinet_name for later downloading QARTOD lookup tables
+                if "alternate_parameter_name" in expected_ds[param].attrs:
+                    ooinet_name = expected_ds[param].attrs["alternate_parameter_name"]
+                else:
+                    ooinet_name = param
+                
+                # Save datetime, expected, and local flag values as DataArrays in a Dataset
+                compare = xr.Dataset(
+                    data_vars=dict(
+                        expected_flags=(["time"], expected_ds[f"{param}_qartod_{test}_test"][flag_mismatch].values),
+                        local_flags=(["time"], local_ds[param][flag_mismatch].values),
+                        expected_values=(["time"], expected_ds[f"{param}"][flag_mismatch].values),
+                    ),
+                    coords=dict(
+                        time=expected_ds['time'][flag_mismatch].values,
+                    ),
+                    attrs=dict(
+                        parameter_name=f"{param}",
+                        ooinet_name=f"{ooinet_name}",
+                        percent_mismatched=f"{round(100*len(flag_mismatch)/len(expected_ds['time']))}%",
+                        file_name=f"{expected_file}",
+                    ),
+                )
+                export_filename="{}_comparison-deployment{}.nc".format(test_name, deployment)
+                export_path=os.path.join(os.path.abspath("../data/processed"), expected_ds.collection_method, expected_ds.stream, expected_ds.id[0:27], export_filename)
+                compare.to_netcdf(export_path)
+            
                 mismatch.update({ f"{param}": {
                         'total' : f"{len(flag_mismatch)} ({round(100*len(flag_mismatch)/len(expected_ds['time']))}%)",
-                        'datetimes' : expected_ds['time'][flag_mismatch].values,
-                        'expected_flags' : expected_ds[f"{param}_qartod_{test}_test"][flag_mismatch].values,
-                        'local_flags' : local_ds[param][flag_mismatch].values,
-                        'file_name' : f"{expected_file}"
                 }})
     return mismatch
