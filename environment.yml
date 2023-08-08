@@ -32,3 +32,4 @@ dependencies:
   - urllib3
   - chardet
   - conda-build
+  - scipy
