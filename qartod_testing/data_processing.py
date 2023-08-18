@@ -108,10 +108,10 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
                 ds = xr.load_dataset(io.BytesIO(response.content), decode_cf=False)
             # Preprocess downloaded data
             ds = process_file(ds)
-            if 'serial_number' in ds.variables:
-                ds = ds.drop_vars('serial_number')
+            ds = ds.drop_vars(['serial_number', 'dcl_controller_timestamp', 'date_time_string'], errors='ignore')
             file_path = os.path.join(folder_path, file_name)
             ds.to_netcdf(file_path)
+            # ds.to_netcdf(file_path, mode='w', format='NETCDF4', engine='h5netcdf', encoding=ENCODINGS)
         else:
             print("Bad request: unable to download file %s" % file_name)
     return sensor_files
@@ -684,12 +684,6 @@ def qartod_summary_expanded(ds, params, deployment, test):
         test_name = f"{param}_qartod_{test}_test"
         if test_name not in ds.variables:
             results.update({f"{param} total": "NaN",
-                    f"{param.split('_')[-1]} good": "NaN",
-                    f"{param.split('_')[-1]} good %": "NaN",
-                    f"{param.split('_')[-1]} suspect": "NaN",
-                    f"{param.split('_')[-1]} suspect %": "NaN",
-                    f"{param.split('_')[-1]} fail": "NaN",
-                    f"{param.split('_')[-1]} fail %": "NaN"
                     })
 
             
