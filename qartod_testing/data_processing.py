@@ -19,8 +19,9 @@ import pandas as pd
 import xarray as xr
 import dask
 from dask.diagnostics import ProgressBar
-from ioos_qc.qartod import gross_range_test, climatology_test,
-                           ClimatologyConfig
+from ioos_qc.qartod import gross_range_test, climatology_test, \
+    ClimatologyConfig
+                          
 from urllib3.util import Retry
 
 from ooinet import M2M
