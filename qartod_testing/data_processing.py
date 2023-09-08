@@ -102,7 +102,7 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     # Now build the url to access the data
     sensor_files = [re.sub("catalog.html\?dataset=",
                            M2M.URLS["goldCopy_fileServer"], file) for file in
-                    sensor_files]
+                    sensor_files if "blank" not in file]
 
     # build path to folder where data will be saved
     folder_path = os.path.join(os.path.abspath('../data/external'), method,
