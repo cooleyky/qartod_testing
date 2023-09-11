@@ -9,6 +9,7 @@ import xarray as xr
 import numpy as np
 import pandas as pd
 
+
 def nanfill_time_gaps(dataset, freq='3H'):
     """
         Use this function to create sections with nans in time series at times where no data exists in the record.

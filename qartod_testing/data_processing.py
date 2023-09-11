@@ -1,26 +1,33 @@
+"""
+"""
+# Import libraries used in this module
 import os
 import re
+import warnings
+from tqdm import tqdm
+import io
+import time
+import sys
+import ast
+import stat
+
+import netrc
+import requests
+from requests.adapters import HTTPAdapter
+import numpy as np
+import pandas as pd
 import xarray as xr
 import dask
 from dask.diagnostics import ProgressBar
+from ioos_qc.qartod import gross_range_test, climatology_test, \
+    ClimatologyConfig
+                          
+from urllib3.util import Retry
+
 from ooinet import M2M
 from ooinet.Instrument.common import process_file
 import ooi_data_explorations.common as common
 from ooi_data_explorations.common import ENCODINGS
-import warnings
-from tqdm import tqdm
-import numpy as np
-import netrc
-import requests
-from requests.adapters import HTTPAdapter
-import io
-import time
-import sys
-import pandas as pd
-import ast
-from ioos_qc.qartod import gross_range_test, climatology_test, ClimatologyConfig
-from urllib3.util import Retry
-import stat
 
 # Initialize Session object for M2M data requests
 SESSION = requests.Session()
@@ -28,17 +35,20 @@ retry = Retry(connect=5, backoff_factor=0.5)
 adapter = HTTPAdapter(max_retries=retry)
 SESSION.mount('https://', adapter)
 
-def build_data_path(refdes,method,stream,prefix='',folder='interim',suffix='.nc'):
-    """ Returns data path for opening or saving datasets for a particular sensor.
+
+def build_data_path(refdes, method, stream, prefix='', folder='interim',
+                    suffix='.nc'):
+    """ Build a file name and path to folder from the data stream
+    information to return a data path for opening or saving datasets.
     
     Parameters
     ----------
-        refdes: string 
+        refdes: string
             built from OOI site, node, and sensor for chosen dataset
         method: string
-            'recovered_inst', 'recovered_host', or 'telemetered'(?) 
+            'recovered_inst', 'recovered_host', or 'telemetered'(?)
         stream: string
-            name of data stream 
+            name of data stream
         prefix: string
             usually 'prod' or 'dev', but empty by default
         folder: string
@@ -49,34 +59,36 @@ def build_data_path(refdes,method,stream,prefix='',folder='interim',suffix='.nc'
         ds_path: Path object
              absolute path to dataset
     """
-    
-    filename = '-'.join((prefix,refdes,method,stream))+suffix           # build filename from dataset type and source
-
-    data_folder = os.path.relpath('../data')                            # path to data folder from notebook folder
-
-    ds_path=os.path.join(data_folder,folder,filename)                   # build full relative path 
-    
+     # build filename from dataset type and source
+    filename = '-'.join((prefix,refdes,method,stream)) + suffix
+    # path to data folder from notebook folder
+    data_folder = os.path.relpath('../data')
+    # Join folder path and file name to build full relative path
+    ds_path=os.path.join(data_folder,folder,filename)
     return ds_path
 
+
 def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
-    """ Requests gold copy data via M2M, downloads requested datasets, and saves files containing 
-    a single deployment in the external data folder.
+    """ Requests gold copy data via M2M, downloads requested datasets,
+    and saves files containing a single deployment in the external data folder.
     
     Parameters
     ----------
-      refdes: string 
-          Contains the site, node, and sensor ID of interest separated by '-'
-      method: string 
-          Represents method of data retrieval, either 'recovered_inst', 'recovered_host', or 'telemetered'
+      refdes: string
+          Contains the site, node, and sensor ID of interest separated
+          by '-'
+      method: string
+          Represents method of data retrieval, either 'recovered_inst',
+          'recovered_host', or 'telemetered'
       stream: string
-          Describes data product from given method of data retrieval, set by OOI
+          Describes data product from given method of data retrieval,
+          set by OOI
     
     Returns
     -------
       sensor_files: list
           Names of files that were requested and downloaded
     """
-
     # Use the gold copy THREDDs datasets
     thredds_url = M2M.get_thredds_url(refdes, method, stream, goldCopy=True)
 
@@ -85,50 +97,62 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     deployments = M2M.get_deployments(refdes)
 
     # Remove ancillary files from list of files from THREDDs catalog
-    sensor_files = M2M.clean_catalog(thredds_catalog, stream, deployments) 
+    sensor_files = M2M.clean_catalog(thredds_catalog, stream, deployments)
 
     # Now build the url to access the data
-    sensor_files = [re.sub("catalog.html\?dataset=", M2M.URLS["goldCopy_fileServer"], file) for file in sensor_files]
+    sensor_files = [re.sub("catalog.html\?dataset=",
+                           M2M.URLS["goldCopy_fileServer"], file) for file in
+                    sensor_files if "blank" not in file]
 
     # build path to folder where data will be saved
-    folder_path = os.path.join(os.path.abspath('../data/external'), method, stream, refdes)
+    folder_path = os.path.join(os.path.abspath('../data/external'), method,
+                               stream, refdes)
     
     # make folder if it does not already exist
     os.makedirs(folder_path, exist_ok=True)
 
     # preprocess the data and save to disk
-    for file in tqdm(sensor_files, desc='Downloading and Processing Data Files'):
+    for file in tqdm(sensor_files, 
+                     desc='Downloading and Processing Data Files'):
         file_name = re.findall("deployment.*\.nc$", file)[0]
         response = SESSION.get(file, timeout=(3.05, 120))
         if response.ok:
             # load the data file
             if use_dask:
-                ds = xr.open_dataset(io.BytesIO(response.content), decode_cf=False, chunks=10000)
+                ds = xr.open_dataset(io.BytesIO(response.content),
+                                     decode_cf=False, chunks=10000)
             else:
-                ds = xr.load_dataset(io.BytesIO(response.content), decode_cf=False)
+                ds = xr.load_dataset(io.BytesIO(response.content),
+                                     decode_cf=False)
             # Preprocess downloaded data
             ds = process_file(ds)
-            if 'serial_number' in ds.variables:
-                ds = ds.drop_vars('serial_number')
+            ds = ds.drop_vars(['serial_number', 'dcl_controller_timestamp',
+                               'date_time_string'], errors='ignore')
             file_path = os.path.join(folder_path, file_name)
             ds.to_netcdf(file_path)
+            # ds.to_netcdf(file_path, mode='w', format='NETCDF4',
+                         # engine='h5netcdf', encoding=ENCODINGS)
         else:
             print("Bad request: unable to download file %s" % file_name)
     return sensor_files
 
-def dev1_data_request(site, node, sensor, method, stream, params):
-    # Input:
-    #   refdes: string containing the site, node, and sensor ID of interest separated by '-'
-    #   method: string representing method of data retrieval, either 'recovered_inst', 'recovered_host', or 'telemetered'
-    #   stream: string for resulting data product from given method of data retrieval
-    #
-    # Returns:
-    #   data: xarray Dataset containing the concatenated and preprocessed data files
-    #
-    # To-do: This function will also save the individual data files in the external data folder, organized by site, node, sensor from refdes 
 
-    # Initialize credentials for dev1 server
-    # This process is borrowed from ooinet.M2M module
+def dev1_data_request(site, node, sensor, method, stream, params):
+    """ Make a request for a netcdf dataset from dev1 with data stream identifiers.
+    
+    Input:
+        refdes: string containing the site, node, and sensor ID of interest separated by '-'
+        method: string representing method of data retrieval, either 'recovered_inst', 'recovered_host', or 'telemetered'
+        stream: string for resulting data product from given method of data retrieval
+    
+    Returns:
+        data: xarray Dataset containing the concatenated and preprocessed data files
+
+    To-do: This function will also save the individual data files in the external data folder, organized by site, node, sensor from refdes 
+
+    Initialize credentials for dev1 server
+    This process is borrowed from ooinet.M2M module
+    """
     try:
         nrc = netrc.netrc()
         AUTH = nrc.authenticators('ooinet-dev1-west.intra.oceanobservatories.org')
@@ -260,9 +284,9 @@ def dev1_data_request(site, node, sensor, method, stream, params):
         data = common.merge_frames(frames)
     else:
         print('no data frames merged')
-        data = None
-    
+        data = None    
     return data
+
 
 def timeseries_dict_to_xarray(dictionary, ds):
     # Input:
@@ -284,11 +308,15 @@ def timeseries_dict_to_xarray(dictionary, ds):
 
     return dict_as_ds
 
+
 GITHUB_BASE_URL = "https://raw.githubusercontent.com/oceanobservatories/qc-lookup/master/qartod"
+
 
 def load_gross_range_qartod_test_values(refdes, stream, ooinet_param):
     """
-    Load the gross range QARTOD test from gitHub
+    Load the gross range QARTOD lookup table from GitHub repo
+    oceanobservatories/qc-lookup and return the table as a Pandas
+    DataFrame.
     """
     subsite, node, sensor = refdes.split("-", 2)
     sensor_type = sensor[3:8].lower()
@@ -311,9 +339,9 @@ def load_gross_range_qartod_test_values(refdes, stream, ooinet_param):
     df = df[(df["subsite"] == subsite) & 
             (df["node"] == node) & 
             (df["sensor"] == sensor) &
-            (df["stream"] == stream)]
-    
+            (df["stream"] == stream)]   
     return df
+
 
 def load_climatology_qartod_test_values(refdes, param):
     """
@@ -342,15 +370,18 @@ def load_climatology_qartod_test_values(refdes, param):
         return None
     return df
 
+
 def qartod_gross_range_test(refdes, stream, test_parameters, ds):
-    # Input:
-    #   refdes
-    #   stream
-    #   test_parameters
-    #   ds
-    #
-    # Returns:
-    #   gross_range_results
+    """
+    Input:
+      refdes
+      stream
+      test_parameters
+      ds
+    
+    Returns:
+      gross_range_results
+    """
 
     # Run through all of the parameters which had the QARTOD tests applied by OOINet and
     # run the tests locally, saving the results in a dictionary
@@ -377,8 +408,8 @@ def qartod_gross_range_test(refdes, stream, test_parameters, ds):
         gross_range_results.update(
             {param: param_results}
         )
-        
     return gross_range_results
+
 
 def qartod_climatology_test(refdes, stream, test_parameters, ds):
     # Input:
@@ -459,9 +490,8 @@ def qartod_climatology_test(refdes, stream, test_parameters, ds):
         climatology_results.update({
             param: param_results
         })
-
-
     return climatology_results
+
 
 def parse_qartod_executed(ds, parameters):
     """
@@ -504,8 +534,8 @@ def parse_qartod_executed(ds, parameters):
             test_index = test_order.index(test)
             test_name = f"{param}_qartod_{test.strip()}"
             ds[test_name] = ds[qartod_name].str.get(test_index)
-
     return ds
+
 
 def get_test_parameters(ds):
     # Create a dictionary of key-value pairs of dataset variable name:alternate parameter name for parameters that have undergone QARTOD testing.
@@ -528,6 +558,7 @@ def get_test_parameters(ds):
     # Print out the results
     return test_parameters
 
+
 def run_comparison(ds, param, test_results, test):
     """
     Andrew's example:
@@ -547,6 +578,7 @@ def run_comparison(ds, param, test_results, test):
         return None
     else:
         return not_equal
+    
     
 def qartod_results_summary(ds, params, test):
     """
@@ -625,9 +657,9 @@ def qartod_results_summary(ds, params, test):
         # Save the test results for each parameter
         results.update({
             param: test_results
-        })
-    
+        })    
     return results
+
 
 def qartod_summary_expanded(ds, params, deployment, test):
     """
@@ -684,12 +716,6 @@ def qartod_summary_expanded(ds, params, deployment, test):
         test_name = f"{param}_qartod_{test}_test"
         if test_name not in ds.variables:
             results.update({f"{param} total": "NaN",
-                    f"{param.split('_')[-1]} good": "NaN",
-                    f"{param.split('_')[-1]} good %": "NaN",
-                    f"{param.split('_')[-1]} suspect": "NaN",
-                    f"{param.split('_')[-1]} suspect %": "NaN",
-                    f"{param.split('_')[-1]} fail": "NaN",
-                    f"{param.split('_')[-1]} fail %": "NaN"
                     })
 
             
@@ -716,6 +742,7 @@ def qartod_summary_expanded(ds, params, deployment, test):
                     })
             
     return results
+
 
 def get_mismatched_flags(expected_ds, local_ds, parameters, deployment, test, expected_file):
     """
