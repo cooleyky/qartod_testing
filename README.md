@@ -8,9 +8,26 @@ QARTOD Testing
 [![Documentation Status](https://readthedocs.org/projects/qartod_testing/badge/?version=latest)](https://qartod_testing.readthedocs.io/en/latest/?badge=latest)
 
 
-Scripts to check performance of QARTOD tests on OOI data in development and provide statistics illustrating the composition of QARTOD flags for a given dataset.
+Scripts to check performance of QARTOD tests on OOI data in both production and development. This includes providing statistics illustrating the composition of QARTOD flags for a given dataset, running QC tests on datasets locally for comparison with expected results, and perform data deep dives in preparation for new QARTOD tests.
 
-\hr
+
+## Project Organization
+Since this repository hosts scripts and notebooks for a few different tasks all related to development of QARTOD tests and quantifying their performance, the organization of this repository follows some rules to help clarify which parts are used in each task.
+
+### notebooks
+All notebooks are numbered at the beginning of the file name to indicate the task and steps through which data was processed. The first digit will be the same for notebooks that are for the same task, and the second digit indicates the order that the notebooks should be run to arrive at the same results starting from step "1".
+
+So far the numbering of notebooks for different tasks is as follows:
+<ul><li><strong>0#: </strong> QARTOD test flag statistics and local test comparison</li>
+<li><strong>1#: </strong> SPKIR (downwelling spectral irradiance) data deep dive</li></ul>
+
+### qartod_testing
+This is the directory where the project source code lives. Each of the individual libraries within this directory is focused on a single task (or even half a task in the case of QC flag statistics and running a QC test locally).  
+
+### data
+As you use the notebooks, you will see that any data downloaded from OOINet and subsequently processed is saved in these folders. Git will not track the contents of these folders but they are here as placeholders.
+
+
 ## Setup
 Working with the notebooks and modules contained in this repository requires installation of Git and Python on your machine of choice. The miniconda distribution ([link to installer download](https://docs.conda.io/en/latest/miniconda.html)) is sufficient to get started and progress through the rest of the setup below, which assumes that the environment will initially be setup using the `conda` library. On Windows, you will need to choose the option that adds Anaconda to the PATH environment variable during the miniconda installation. More details on how to do this are available from [this tutorial](https://www.earthdatascience.org/workshops/setup-earth-analytics-python/setup-git-bash-conda/) from [Earth Lab](https://www.earthdatascience.org/).
 
@@ -67,7 +84,7 @@ Whether you're planning on just trying out the included notebooks in this reposi
 ### Using your qartod_test environment in Jupyter Notebooks
 Now that the environment is set up and you have a specific branch to work from, you'll need to choose a kernel when you run a notebook for the first time. You'll choose the kernel that is named the same as the qartod_test environment. This way, all modules that will be imported into the notebooks in this repository are already installed in the environment being used. If the `qartod_test` environment is not automagically added as a kernel option, you can add it from a terminal with the following command: `python -m ipykernel install --user --name=qartod_test`
 
-### Tip for managing your environment
+### A tip for managing your environment
 If you need to add multiple packages to the environment after you have already created it, using `conda install` can quickly result in a "broken" environment if conda cannot resolve incompatible packages. The first step is making sure that you add new dependencies to environment.yml. Next, you can either install individual packages with pip or update the environment from the edited environment file with conda via `conda env update -f environment.yml` once the qartod_test environment is activated.
 
 --------
