@@ -272,8 +272,7 @@ def dev1_data_request(site, node, sensor, method, stream, params):
                         if time_pattern.match(ds[v].attrs['units']):
                             del(ds[v].attrs['_FillValue'])  # no fill values for time!
                             ds[v].attrs['units'] = 'seconds since 1900-01-01T00:00:00.000Z'
-                            np_time = ntp_date 
-                                    + (ds[v] * 1e9).astype('timedelta64[ns]')
+                            np_time = ntp_date + (ds[v] * 1e9).astype('timedelta64[ns]')
                             ds[v] = np_time
 
             # Sort by time
