@@ -13,23 +13,25 @@ import pandas as pd
 
 def nanfill_time_gaps(dataset, freq='3H'):
     """ Use this function to create sections with nans in time series
-        at times where no data exists in the record. After
-        preprocessing, the time coordinate does not include times where
-        no data exists. Adding data variables with nans in these spaces
-        allows user to graph time series in line plots with gaps in the
-        time series, rather than having a straight line connect data
-        across these gaps.
+    at times where no data exists in the record. After preprocessing,
+    the time coordinate does not include times where no data exists.
+    Adding data variables with nans in these spaces allows user to
+    graph time series in line plots with gaps in the time series,
+    rather than having a straight line connect data across these gaps.
 
-        Inputs:
-        -------
-        :param dataset: xarray Dataset without nans in data variables
-                        or coordinates
-        :param freq: datetime-like time interval between observations,
-                     match to original dataset
-        :return dataset_full: xarray Dataset with same coordinates and
-                              variables as dataset but expanded in the
-                              time dimension with nans where no data
-                              was recorded
+    Input:
+    -------
+    :param dataset: xarray Dataset without nans in data variables or
+                    coordinates
+    :param freq: datetime-like time interval between observations,
+                 match to original dataset
+                 
+    Returns:
+    --------
+    :return dataset_full: xarray Dataset with same coordinates and
+                          variables as dataset but expanded in the time
+                          dimension with nans where no data was
+                          recorded
     """
     # Set start and end date times from dataset input
     startDT = dataset.time[0]
