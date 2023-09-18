@@ -13,9 +13,11 @@ import xarray as xr
 import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter
-from ioos_qc import gross_range_test, climatology_test, \
+from ioos_qc.qartod import gross_range_test, climatology_test, \
     ClimatologyConfig
 from urllib3.util import Retry
+
+from qartod_testing.qc_flag_statistics import get_test_parameters
 
 # Initialize Session object for M2M data requests
 SESSION = requests.Session()
@@ -92,7 +94,7 @@ def load_climatology_qartod_test_values(refdes, param):
     return df
 
 
-def qartod_gross_range_test(refdes, stream, test_parameters, ds):
+def run_qartod_gross_range(refdes, stream, test_parameters, ds):
     """ Run through all of the parameters which had the QARTOD tests
     applied by OOINet and run the tests locally, saving the results in
     a dictionary.
@@ -125,7 +127,7 @@ def qartod_gross_range_test(refdes, stream, test_parameters, ds):
         suspect_span = qcConfig.get("qartod").get("gross_range_test").get(
             "suspect_span")
         
-        # Run the gross_range_tenst
+        # Run the gross_range_test
         param_results = gross_range_test(
             inp = ds[param].values,
             fail_span = fail_span,
@@ -138,9 +140,9 @@ def qartod_gross_range_test(refdes, stream, test_parameters, ds):
     return gross_range_results
 
 
-def qartod_climatology_test(refdes, stream, test_parameters, ds):
+def run_qartod_climatology(refdes, stream, test_parameters, ds):
     """ Run through all of the parameters which had the QARTOD tests
-    applied by OOINet and run the tests locally, saving the results in
+    applied by OOINet and run the QARTOD climatology tests locally, saving the results in
     a dictionary.
     
     Input:
@@ -168,7 +170,7 @@ def qartod_climatology_test(refdes, stream, test_parameters, ds):
         fail_span = qcConfig.get("qartod").get("gross_range_test").get(
             "fail_span")
         
-        # Load the gross_range_qartod_test_values from gitHub
+        # Load the climatology QARTOD test values from GitHub
         climatology_qartod_test_values = load_climatology_qartod_test_values(
             refdes, ooinet_name)
         
