@@ -9,7 +9,11 @@
 import xarray as xr
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
+from ooi_data_explorations.common import load_kdata
+from ooi_data_explorations.uncabled.process_flort import flort_datalogger
+from ooi_data_explorations.uncabled.process_metbk import metbk_datalogger
 
 def nanfill_time_gaps(dataset, freq='3H'):
     """ Use this function to create sections with nans in time series
@@ -54,3 +58,47 @@ def nanfill_time_gaps(dataset, freq='3H'):
     dataset_full = dataset_full.drop_vars('variable')
     
     return dataset_full
+
+
+def check_chla_swr(spkir, site, deploy):
+    """Plot downwelling spectral irradiance in comparison with SWR from
+    the surface buoy METBK suite and Chlorophyll-a from the co-located
+    FLORT. This calls for the site where the SPKIR is located.
+    which will also be the same for METBK and FLORT sensors. While the
+    FLORT is also on the NSIF, its data goes through a different DCL such
+    that the node for the FLORT is different.
+    """
+    # Load METBK and FLORT data
+    met_node = 'SBD11' # not all subsites have a second METBK (SBD12)
+    met_sensor = '06-METBKA000'
+    met_method = 'recovered_host'
+    met_stream = 'metbk_a_dcl_instrument_recovered'
+    metbk = load_kdata(site, met_node, met_sensor, met_method, met_stream,
+                       ('*deployment%04d*METBK*.nc' % deploy))
+    metbk = metbk_datalogger(metbk)
+
+    flort_node = 'RID27'
+    flort_sensor = '02-FLORTD000'
+    flort_method = 'recovered_host'
+    flort_stream = 'flort_sample'
+    flort = load_kdata(site, flort_node, flort_sensor, flort_method,
+                       flort_stream, ('*deployment%04d*FLORT*.nc' % deploy))
+    flort = flort_datalogger(flort)
+
+    # Create subplots
+    fig, ax = plt.subplots(3,1, sharex=True, figsize=(15,8))
+    for var in spkir.variables:
+        if "downwelling_irradiance" in var:
+            spkir[var].plot(ax=ax[0], label=spkir[var].radiation_wavelength)
+    ax[0].set_ylabel(
+        'Downwelling Spectral \n Irradiance \n [uW cm$^{-2}$ nm$^{-1}$]')
+    ax[0].legend()
+
+    flort['estimated_chlorophyll'].where(
+        flort['estimated_chlorophyll_qc_summary_flag'] != 4).plot(ax=ax[1])
+
+    metbk['shortwave_irradiance'].where(
+        metbk['shortwave_irradiance_qc_summary_flag'] != 4).plot(ax=ax[2])
+    
+    plt.show()
+    return metbk, flort, fig, ax
