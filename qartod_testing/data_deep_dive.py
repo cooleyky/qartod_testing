@@ -60,7 +60,7 @@ def nanfill_time_gaps(dataset, freq='3H'):
     return dataset_full
 
 
-def check_chla_swr(spkir, site, deploy):
+def check_chla_swr(spkir, site, deploy, flort_node):
     """Plot downwelling spectral irradiance in comparison with SWR from
     the surface buoy METBK suite and Chlorophyll-a from the co-located
     FLORT. This calls for the site where the SPKIR is located.
@@ -77,7 +77,6 @@ def check_chla_swr(spkir, site, deploy):
                        ('*deployment%04d*METBK*.nc' % deploy))
     metbk = metbk_datalogger(metbk)
 
-    flort_node = 'RID27'
     flort_sensor = '02-FLORTD000'
     flort_method = 'recovered_host'
     flort_stream = 'flort_sample'
