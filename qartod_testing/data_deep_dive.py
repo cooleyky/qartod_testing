@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from ooi_data_explorations.common import load_kdata
 from ooi_data_explorations.uncabled.process_flort import flort_datalogger
 from ooi_data_explorations.uncabled.process_metbk import metbk_datalogger
+from ooi_data_explorations.uncabled.process_ctdbp import ctdbp_instrument
 
 def nanfill_time_gaps(dataset, freq='3H'):
     """ Use this function to create sections with nans in time series
@@ -65,8 +66,22 @@ def check_chla_swr(spkir, site, deploy, flort_node):
     the surface buoy METBK suite and Chlorophyll-a from the co-located
     FLORT. This calls for the site where the SPKIR is located.
     which will also be the same for METBK and FLORT sensors. While the
-    FLORT is also on the NSIF, its data goes through a different DCL such
-    that the node for the FLORT is different.
+    FLORT is also on the NSIF, its data may go through a different DCL such
+    that the node for the FLORT could be different.
+    
+    Input:
+    -------
+    spkir
+    site
+    deploy
+    flort_node
+    
+    Returns:
+    --------
+    metbk
+    flort
+    fig
+    ax
     """
     # Load METBK and FLORT data
     met_node = 'SBD11' # not all subsites have a second METBK (SBD12)
@@ -101,3 +116,44 @@ def check_chla_swr(spkir, site, deploy, flort_node):
     
     plt.show()
     return metbk, flort, fig, ax
+
+
+def compare_spkir_to_ctdbp(spkir, site, deploy, ctdbp_node):
+    """Loads CTDBP data from a node near the SPKIR on the NSIF at the
+    same subsite for comparison with the internal temperature from the
+    SPKIR. Returns a plot of SPKIR internal temperature and CTD
+    temperature on the same axes (with figure and axes objects) along
+    with the downloaded CTDBP dataset. The returned plot may be used to
+    check whether discontinuities in the SPKIR internal temperature are
+    also reflected in the CTDBP sea water temperature.
+    
+    Input:
+    -------
+    spkir
+    site
+    deploy
+    ctdbp_node
+    
+    Returns:
+    --------
+    ctdbp
+    fig
+    ax
+    """
+    # Load CTDBP data
+    ctdbp_sensor = '03-CTDBPC000'
+    ctdbp_method = 'recovered_inst'
+    ctdbp_stream = 'ctdbp_cdef_instrument_recovered'
+    ctdbp = load_kdata(site, ctdbp_node, ctdbp_sensor, ctdbp_method,
+                        ctdbp_stream, ('*deployment%04d*CTDBP*.nc' % deploy))
+    ctdbp = ctdbp_instrument(ctdbp)
+    
+    # Create plot of SPKIR internal temperature and CTDBP temperature
+    fig, ax = plt.subplots(1,1, sharex=True, figsize=(15,5))
+    spkir['internal_temperature'][0].plot.line(ax=ax, label='SPKIR internal temperature')
+    ctdbp['sea_water_temperature'].plot.line(ax=ax, label='CTDBP sea water temperature')
+    ax.set_ylabel(
+        'Temperature [$^{\circ}$C]')
+    ax.legend()
+    plt.show()
+    return ctdbp, fig, ax
