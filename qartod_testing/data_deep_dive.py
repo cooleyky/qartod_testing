@@ -118,7 +118,7 @@ def check_chla_swr(spkir, site, deploy, flort_node):
     return metbk, flort, fig, ax
 
 
-def compare_spkir_to_ctdbp(spkir, site, deploy, ctdbp_node):
+def compare_spkir_to_ctdbp(spkir, site, deploy, ctdbp_node, ctdbp_sensor):
     """Loads CTDBP data from a node near the SPKIR on the NSIF at the
     same subsite for comparison with the internal temperature from the
     SPKIR. Returns a plot of SPKIR internal temperature and CTD
@@ -141,7 +141,7 @@ def compare_spkir_to_ctdbp(spkir, site, deploy, ctdbp_node):
     ax
     """
     # Load CTDBP data
-    ctdbp_sensor = '03-CTDBPC000'
+    # ctdbp_sensor = '03-CTDBPC000'
     ctdbp_method = 'recovered_inst'
     ctdbp_stream = 'ctdbp_cdef_instrument_recovered'
     ctdbp = load_kdata(site, ctdbp_node, ctdbp_sensor, ctdbp_method,
