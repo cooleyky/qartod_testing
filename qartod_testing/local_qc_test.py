@@ -42,7 +42,7 @@ def load_gross_range_qartod_test_values(refdes, stream, ooinet_param):
     subsite, node, sensor = refdes.split("-", 2)
     sensor_type = sensor[3:8].lower()
     
-    # gitHub url to the gross range table
+    # GitHub url to the gross range table
     GROSS_RANGE_URL = f"{GITHUB_BASE_URL}/{sensor_type}/{sensor_type}_qartod_gross_range_test_values.csv"
     
     # Download the results
@@ -79,7 +79,7 @@ def load_climatology_qartod_test_values(refdes, param):
     site, node, sensor = refdes.split("-", 2)
     sensor_type = sensor[3:8].lower()
     
-    # gitHub url to the climatology tables
+    # GitHub url to the climatology tables
     CLIMATOLOGY_URL = f"{GITHUB_BASE_URL}/{sensor_type}/climatology_tables/{refdes}-{param}.csv"
     
     # Download the results
