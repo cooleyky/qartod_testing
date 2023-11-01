@@ -171,8 +171,13 @@ def run_qartod_climatology(refdes, stream, test_parameters, ds):
             "fail_span")
         
         # Load the climatology QARTOD test values from GitHub
-        climatology_qartod_test_values = load_climatology_qartod_test_values(
-            refdes, ooinet_name)
+        # Use dataset parameter name if PHSEN, and ooinet name otherwise
+        if 'PHSEN' in refdes:
+            climatology_qartod_test_values = \
+                load_climatology_qartod_test_values(refdes, 'seawater_ph')
+        else:
+            climatology_qartod_test_values = \
+                load_climatology_qartod_test_values(refdes, ooinet_name)
         
         if climatology_qartod_test_values is None:
             climatology_results.update({
