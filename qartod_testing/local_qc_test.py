@@ -217,11 +217,12 @@ def run_qartod_climatology(refdes, stream, test_parameters, ds):
                     period="month")
                 # print([pmin, pmax])
         # Run the climatology test
-        time = ds["time"].to_numpy()
+        # time = ds["time"].astype(object)
         param_results = climatology_test(c,
-                                        inp=ds[param],
-                                        tinp=time,
-                                        zinp=np.full_like(ds[param], np.nan))
+                                        inp=ds[param].to_numpy(),
+                                        tinp=ds["time"].to_numpy(),
+                                        zinp=np.ones_like(ds["time"])
+                                        )
         # param_results = climatology_test(c,
         #                                 inp=ds[param],
         #                                 tinp=time,
