@@ -1,7 +1,8 @@
 """
     @author Kylene Cooley
     @brief Functions for running a QC test locally and compare wtih
-            expected QC test results.
+            expected QC test results. Borrowed functions are attributed
+            to the original author in the docstring.
 """
 
 # Import modules used in this notebook
@@ -33,6 +34,7 @@ def load_gross_range_qartod_test_values(refdes, stream, ooinet_param):
     """Load the gross range QARTOD lookup table from GitHub repo
     oceanobservatories/qc-lookup and return the table as a Pandas
     DataFrame.
+    Original function created by Andrew Reed.
     
     Input:
     ------
@@ -67,8 +69,9 @@ def load_gross_range_qartod_test_values(refdes, stream, ooinet_param):
     return df
 
 
-def load_climatology_qartod_test_values(refdes, param):
+def load_climatology_qartod_test_values(refdes, stream, param):
     """Load the OOI climatology QARTOD test values table from GitHub
+    Original function created by Andrew Reed.
     
     Parameters
     ----------
@@ -78,26 +81,50 @@ def load_climatology_qartod_test_values(refdes, param):
         The name of the 
     """
     
-    site, node, sensor = refdes.split("-", 2)
+    subsite, node, sensor = refdes.split("-", 2)
     sensor_type = sensor[3:8].lower()
     
-    # GitHub url to the climatology tables
-    CLIMATOLOGY_URL = f"{GITHUB_BASE_URL}/{sensor_type}/climatology_tables/{refdes}-{param}.csv"
+    # GitHub url to the climatology test tables
+    CLIMATOLOGY_URL = f"{GITHUB_BASE_URL}/{sensor_type}/{sensor_type}_qartod_climatology_test_values.csv"
     
-    # Download the results
+    # Get the correct climatologyTable
     download = requests.get(CLIMATOLOGY_URL)
+    df = pd.read_csv(io.StringIO(download.content.decode('utf-8')))
+    df["parameters"] = df["parameters"].apply(ast.literal_eval)
+    # Next, filter for the desired parameter
+    mask = df["parameters"].apply(lambda x: True if x.get("inp") == param else False)
+    df = df[mask]
+    
+    # Now filter for the desired stream
+    df = df[(df["subsite"] == subsite) & 
+            (df["node"] == node) & 
+            (df["sensor"] == sensor) &
+            (df["stream"] == stream)]
+    
+    # Get the "zinp" as a check
+    zinp = df["parameters"].values[0].get('zinp')
+    
+    # Get the correct climatologyTable
+    climatologyTable = df["climatologyTable"].values[0]
+
+    # Construct the url to the climatologyTable
+    CLIMATOLOGY_TABLE_URL = f"{GITHUB_BASE_URL}/{sensor_type}/{climatologyTable}"
+
+    # Download the results
+    download = requests.get(CLIMATOLOGY_TABLE_URL)
     if download.status_code == 200:
         df = pd.read_csv(io.StringIO(download.content.decode('utf-8')), index_col=0)
         df = df.applymap(ast.literal_eval)
     else:
         return None
-    return df
+    return df, zinp
 
 
 def run_qartod_gross_range(refdes, stream, test_parameters, ds):
     """ Run through all of the parameters which had the QARTOD tests
     applied by OOINet and run the tests locally, saving the results in
     a dictionary.
+    Based on workflow developed by Andrew Reed.
     
     Input:
     ------
@@ -129,7 +156,7 @@ def run_qartod_gross_range(refdes, stream, test_parameters, ds):
         
         # Run the gross_range_test
         param_results = gross_range_test(
-            inp = ds[param].values,
+            inp = ds[param].fillna(999999).values,
             fail_span = fail_span,
             suspect_span = suspect_span)
         
@@ -144,6 +171,7 @@ def run_qartod_climatology(refdes, stream, test_parameters, ds):
     """ Run through all of the parameters which had the QARTOD tests
     applied by OOINet and run the QARTOD climatology tests locally, saving the results in
     a dictionary.
+    Based on workflow developed by Andrew Reed.
     
     Input:
     ------
@@ -156,34 +184,40 @@ def run_qartod_climatology(refdes, stream, test_parameters, ds):
     --------
       climatology_results
     """
-    
+    # Allocate an empty dictionary to store results
     climatology_results = {}
 
     for param in test_parameters:
         # Get the ooinet name
         ooinet_name = test_parameters.get(param)
-
-        # This test uses the same fail span from the gross range test config
-        gross_range_qartod_test_values = load_gross_range_qartod_test_values(
-            refdes, stream, ooinet_name)
-        qcConfig = gross_range_qartod_test_values["qcConfig"].values[0]
-        fail_span = qcConfig.get("qartod").get("gross_range_test").get(
-            "fail_span")
         
         # Load the climatology QARTOD test values from GitHub
-        # Use dataset parameter name if PHSEN, and ooinet name otherwise
-        if 'PHSEN' in refdes:
-            climatology_qartod_test_values = \
-                load_climatology_qartod_test_values(refdes, 'seawater_ph')
-        else:
-            climatology_qartod_test_values = \
-                load_climatology_qartod_test_values(refdes, ooinet_name)
+            # try:
+        climatology_qartod_test_values, zinp = \
+            load_climatology_qartod_test_values(refdes, stream, ooinet_name)
+            # except:
+            #     climatology_results.update({
+            #         param: "Not implemented."
+            #     })
+            #     continue
         
         if climatology_qartod_test_values is None:
             climatology_results.update({
                 param: "Not implemented."
             })
             continue
+        
+        # Check that the 'zinp' is in the dataset. If not, need to add a dummy variable
+        if zinp not in ds.variables:
+            ds['zinp'] = (["time"], np.ones(ds["time"].shape))
+            zinp = 'zinp'
+        
+        # This test uses the same fail span from the gross range test config
+        gross_range_qartod_test_values = load_gross_range_qartod_test_values(
+            refdes, stream, ooinet_name)
+        qcConfig = gross_range_qartod_test_values["qcConfig"].values[0]
+        fail_span = qcConfig.get("qartod").get("gross_range_test").get(
+            "fail_span")
         
         # Initialize a climatology config object
         c = ClimatologyConfig()
@@ -200,9 +234,7 @@ def run_qartod_climatology(refdes, stream, test_parameters, ds):
             # then set the range to [0, 5000]
             if pmax == 0:
                 pmax = 5000
-                # if "sea_water_pressure" not in ds.variables:
-                #     ds["sea_water_pressure"] = [0, 0]
-
+               
             for tspan in p_values.keys():
                 # Get the time span
                 tstart, tend = ast.literal_eval(tspan)
@@ -212,21 +244,15 @@ def run_qartod_climatology(refdes, stream, test_parameters, ds):
 
                 # Add the test to the climatology config object
                 c.add(tspan=[tstart, tend],
-                    vspan=[vmin, vmax],
-                    fspan=[fail_span[0], fail_span[1]],
-                    period="month")
-                # print([pmin, pmax])
+                      vspan=[vmin, vmax],
+                      fspan=[fail_span[0], fail_span[1]],
+                      period="month")
+                               
         # Run the climatology test
-        # time = ds["time"].astype(object)
         param_results = climatology_test(c,
-                                        inp=ds[param].to_numpy(),
-                                        tinp=ds["time"].to_numpy(),
-                                        zinp=np.ones_like(ds["time"])
-                                        )
-        # param_results = climatology_test(c,
-        #                                 inp=ds[param],
-        #                                 tinp=time,
-        #                                 zinp=ds['sea_water_pressure'])
+                                         inp=ds[param].fillna(999999),
+                                         tinp=ds["time"].values,
+                                         zinp=ds[zinp])
         
         # Append the results to the end of the dictionary
         climatology_results.update({
@@ -236,10 +262,9 @@ def run_qartod_climatology(refdes, stream, test_parameters, ds):
 
 
 def run_comparison(ds, param, test_results, test):
-    """
-    Andrew's example:
-    Runs a comparison between the qartod gross range results returned
+    """Runs a comparison between the qartod gross range results returned
     as part of the dataset and results calculated locally.
+    Original function created by Andrew Reed.
     
     edit:
         added parameter - test: string "gross_range" or "climatology"
