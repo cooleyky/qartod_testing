@@ -572,3 +572,90 @@ def qartod_summary_expanded(ds, params, deployment, test):
                     })
             
     return results
+
+def get_deployment_ds(paths_copy):
+    """ Loads multi-file dataset for files whose names contain the same
+    deployment number as the first file in the list.
+    """    
+    # get deployment number from first file name
+    file = paths_copy[0]    
+    deployment = re.findall('deployment00[0-2][0-9]', file)[0][-2:]
+    
+    # Open each dataset and append to a set of data frames
+    deployment_files = [x for x in paths_copy if
+                        f'deployment00{deployment}' in x]
+    if len(deployment_files)>1:
+        deployment_ds = [xr.open_dataset(single_file) for single_file
+                         in deployment_files]
+        deployment_ds = merge_frames(deployment_ds)
+    else:  
+        deployment_ds = xr.open_dataset(file)
+
+    [paths_copy.remove(x) for x in deployment_files]
+    return deployment_ds, deployment, paths_copy
+
+def collect_statistics(file_paths, test_name):
+    """ Calls other functions to calculate statistics from a set of
+    files and a name of a QARTOD test. The statistics are organized in
+    a DataFrame.
+    
+    Parameters:
+    -----------
+        file_paths: list of paths to each file that will have
+            statistics calculated. File names must include "deployment00##".
+        test_name: string of QARTOD test name, i.e. "gross_range",
+            "climatology".
+        
+    Returns:
+    --------
+        statistics: Pandas DataFrame containing statistics on each
+            parameter with a QARTOD test in order of deployment number,
+            then statistics of the full record.
+        
+    Version 23 Aug 2023, Kylene M Cooley    
+    """
+    
+    # Initialize empty dictionary for statistics
+    statistics = {}
+    
+    # Create a copy of list of file paths for individual deployment
+    # statistics
+    paths_copy = file_paths.copy()
+
+    while len(paths_copy)>0:
+        # Open a dataset with a single deployment
+        file_ds, deployment, paths_copy = get_deployment_ds(paths_copy)
+
+        # Get parameters that have QARTOD executed from expected test
+        # dataset
+        test_parameters = get_test_parameters(file_ds)
+        parameters = list(test_parameters.keys())
+
+        # Separate QARTOD test flags in expected test dataset by QARTOD
+        # test name
+        file_ds = parse_qartod_executed(file_ds, parameters)
+
+        # Update summary statistics dictionary for each deployment,
+        # then for all deployments
+        print("Evaluating statistics on QARTOD flags for deployment \
+            "f"{deployment}")
+        summary_results = qartod_summary_expanded(file_ds, parameters,
+                                                  deployment, test_name)
+        statistics.update({f"{deployment}" : summary_results })
+
+    # Open all data files and create merged full dataset
+    merged_ds = [xr.open_dataset(single_file) for single_file in file_paths]
+    merged_ds = merge_frames(merged_ds)
+    deployment = "all"
+
+    # Summary of flags from merged dataset for full data record
+    print("Evaluating statistics on QARTOD flags for all deployments")
+    merged_ds = parse_qartod_executed(merged_ds, parameters)
+    summary_results = qartod_summary_expanded(merged_ds, parameters,
+                                              deployment, test_name)
+    statistics.update({ "all" : summary_results })
+
+    # Create data frame from dictionary and check contents
+    statistics = pd.DataFrame.from_dict(statistics, orient='index')
+    statistics = statistics.set_index('deployment')
+    return statistics

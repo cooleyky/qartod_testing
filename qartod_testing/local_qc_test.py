@@ -1,21 +1,26 @@
 """
     @author Kylene Cooley
     @brief Functions for running a QC test locally and compare wtih
-            expected QC test results.
+            expected QC test results. Borrowed functions are attributed
+            to the original author in the docstring.
 """
 
 # Import modules used in this notebook
 import io
 import ast
+import os
 
 import numpy as np
 import xarray as xr
 import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter
-from ioos_qc import gross_range_test, climatology_test, \
+from ioos_qc.qartod import gross_range_test, climatology_test, \
     ClimatologyConfig
 from urllib3.util import Retry
+
+from qartod_testing.qc_flag_statistics import get_test_parameters, \
+    timeseries_dict_to_xarray, get_deployment_ds
 
 # Initialize Session object for M2M data requests
 SESSION = requests.Session()
@@ -31,6 +36,7 @@ def load_gross_range_qartod_test_values(refdes, stream, ooinet_param):
     """Load the gross range QARTOD lookup table from GitHub repo
     oceanobservatories/qc-lookup and return the table as a Pandas
     DataFrame.
+    Original function created by Andrew Reed.
     
     Input:
     ------
@@ -65,8 +71,9 @@ def load_gross_range_qartod_test_values(refdes, stream, ooinet_param):
     return df
 
 
-def load_climatology_qartod_test_values(refdes, param):
+def load_climatology_qartod_test_values(refdes, stream, param):
     """Load the OOI climatology QARTOD test values table from GitHub
+    Original function created by Andrew Reed.
     
     Parameters
     ----------
@@ -76,26 +83,50 @@ def load_climatology_qartod_test_values(refdes, param):
         The name of the 
     """
     
-    site, node, sensor = refdes.split("-", 2)
+    subsite, node, sensor = refdes.split("-", 2)
     sensor_type = sensor[3:8].lower()
     
-    # GitHub url to the climatology tables
-    CLIMATOLOGY_URL = f"{GITHUB_BASE_URL}/{sensor_type}/climatology_tables/{refdes}-{param}.csv"
+    # GitHub url to the climatology test tables
+    CLIMATOLOGY_URL = f"{GITHUB_BASE_URL}/{sensor_type}/{sensor_type}_qartod_climatology_test_values.csv"
     
-    # Download the results
+    # Get the correct climatologyTable
     download = requests.get(CLIMATOLOGY_URL)
+    df = pd.read_csv(io.StringIO(download.content.decode('utf-8')))
+    df["parameters"] = df["parameters"].apply(ast.literal_eval)
+    # Next, filter for the desired parameter
+    mask = df["parameters"].apply(lambda x: True if x.get("inp") == param else False)
+    df = df[mask]
+    
+    # Now filter for the desired stream
+    df = df[(df["subsite"] == subsite) & 
+            (df["node"] == node) & 
+            (df["sensor"] == sensor) &
+            (df["stream"] == stream)]
+    
+    # Get the "zinp" as a check
+    zinp = df["parameters"].values[0].get('zinp')
+    
+    # Get the correct climatologyTable
+    climatologyTable = df["climatologyTable"].values[0]
+
+    # Construct the url to the climatologyTable
+    CLIMATOLOGY_TABLE_URL = f"{GITHUB_BASE_URL}/{sensor_type}/{climatologyTable}"
+
+    # Download the results
+    download = requests.get(CLIMATOLOGY_TABLE_URL)
     if download.status_code == 200:
         df = pd.read_csv(io.StringIO(download.content.decode('utf-8')), index_col=0)
         df = df.applymap(ast.literal_eval)
     else:
         return None
-    return df
+    return df, zinp
 
 
-def qartod_gross_range_test(refdes, stream, test_parameters, ds):
+def run_qartod_gross_range(refdes, stream, test_parameters, ds):
     """ Run through all of the parameters which had the QARTOD tests
     applied by OOINet and run the tests locally, saving the results in
     a dictionary.
+    Based on workflow developed by Andrew Reed.
     
     Input:
     ------
@@ -125,9 +156,9 @@ def qartod_gross_range_test(refdes, stream, test_parameters, ds):
         suspect_span = qcConfig.get("qartod").get("gross_range_test").get(
             "suspect_span")
         
-        # Run the gross_range_tenst
+        # Run the gross_range_test
         param_results = gross_range_test(
-            inp = ds[param].values,
+            inp = ds[param].fillna(999999).values,
             fail_span = fail_span,
             suspect_span = suspect_span)
         
@@ -138,10 +169,11 @@ def qartod_gross_range_test(refdes, stream, test_parameters, ds):
     return gross_range_results
 
 
-def qartod_climatology_test(refdes, stream, test_parameters, ds):
+def run_qartod_climatology(refdes, stream, test_parameters, ds):
     """ Run through all of the parameters which had the QARTOD tests
-    applied by OOINet and run the tests locally, saving the results in
+    applied by OOINet and run the QARTOD climatology tests locally, saving the results in
     a dictionary.
+    Based on workflow developed by Andrew Reed.
     
     Input:
     ------
@@ -154,29 +186,40 @@ def qartod_climatology_test(refdes, stream, test_parameters, ds):
     --------
       climatology_results
     """
-    
+    # Allocate an empty dictionary to store results
     climatology_results = {}
 
     for param in test_parameters:
         # Get the ooinet name
         ooinet_name = test_parameters.get(param)
-
-        # This test uses the same fail span from the gross range test config
-        gross_range_qartod_test_values = load_gross_range_qartod_test_values(
-            refdes, stream, ooinet_name)
-        qcConfig = gross_range_qartod_test_values["qcConfig"].values[0]
-        fail_span = qcConfig.get("qartod").get("gross_range_test").get(
-            "fail_span")
         
-        # Load the gross_range_qartod_test_values from gitHub
-        climatology_qartod_test_values = load_climatology_qartod_test_values(
-            refdes, ooinet_name)
+        # Load the climatology QARTOD test values from GitHub
+            # try:
+        climatology_qartod_test_values, zinp = \
+            load_climatology_qartod_test_values(refdes, stream, ooinet_name)
+            # except:
+            #     climatology_results.update({
+            #         param: "Not implemented."
+            #     })
+            #     continue
         
         if climatology_qartod_test_values is None:
             climatology_results.update({
                 param: "Not implemented."
             })
             continue
+        
+        # Check that the 'zinp' is in the dataset. If not, need to add a dummy variable
+        if zinp not in ds.variables:
+            ds['zinp'] = (["time"], np.ones(ds["time"].shape))
+            zinp = 'zinp'
+        
+        # This test uses the same fail span from the gross range test config
+        gross_range_qartod_test_values = load_gross_range_qartod_test_values(
+            refdes, stream, ooinet_name)
+        qcConfig = gross_range_qartod_test_values["qcConfig"].values[0]
+        fail_span = qcConfig.get("qartod").get("gross_range_test").get(
+            "fail_span")
         
         # Initialize a climatology config object
         c = ClimatologyConfig()
@@ -193,9 +236,7 @@ def qartod_climatology_test(refdes, stream, test_parameters, ds):
             # then set the range to [0, 5000]
             if pmax == 0:
                 pmax = 5000
-                # if "sea_water_pressure" not in ds.variables:
-                #     ds["sea_water_pressure"] = [0, 0]
-
+               
             for tspan in p_values.keys():
                 # Get the time span
                 tstart, tend = ast.literal_eval(tspan)
@@ -205,20 +246,15 @@ def qartod_climatology_test(refdes, stream, test_parameters, ds):
 
                 # Add the test to the climatology config object
                 c.add(tspan=[tstart, tend],
-                    vspan=[vmin, vmax],
-                    fspan=[fail_span[0], fail_span[1]],
-                    period="month")
-                # print([pmin, pmax])
+                      vspan=[vmin, vmax],
+                      fspan=[fail_span[0], fail_span[1]],
+                      period="month")
+                               
         # Run the climatology test
-        time = ds["time"].to_numpy()
         param_results = climatology_test(c,
-                                        inp=ds[param],
-                                        tinp=time,
-                                        zinp=np.full_like(ds[param], np.nan))
-        # param_results = climatology_test(c,
-        #                                 inp=ds[param],
-        #                                 tinp=time,
-        #                                 zinp=ds['sea_water_pressure'])
+                                         inp=ds[param].fillna(999999),
+                                         tinp=ds["time"].values,
+                                         zinp=ds[zinp])
         
         # Append the results to the end of the dictionary
         climatology_results.update({
@@ -227,11 +263,62 @@ def qartod_climatology_test(refdes, stream, test_parameters, ds):
     return climatology_results
 
 
-def run_comparison(ds, param, test_results, test):
+def save_local_qc_tests(file_paths, refdes, stream, method, test_name):
+    """ For a set of file paths and QC test name to run, this function
+    loads each dataset individually and runs the requested local QC
+    test. The parameters to test are determined from the variable names
+    in the dataset containing "qartod_executed". The results of the test
+    on all parameters that have relevant lookup tables on the
+    oceanobservatories/qc-lookup repo on GitHub are saved in an
+    xarray Dataset to a NetCDF file in the
+    data/interim/{method}/{stream}/{refdes} directory in this project.
+    
+    Input:
+    ------
+    file_paths: list of strings, the paths to the external dataset files
+        downloaded from OOINet.
+    test_name: string, either "climatology" or "gross_range" for the
+        desired QC test to run. These options both currently call the
+        QARTOD tests from the US IOOS ioos_qc package.
+        
+    Returns:
+    --------
+    None
     """
-    Andrew's example:
-    Runs a comparison between the qartod gross range results returned
+    # Create copy of list of file paths for loading multi-file, single-deployment datasets
+    paths_copy = file_paths.copy()
+    
+    while len(paths_copy) > 0:
+        # Load data from a single deployment
+        deploy_ds, deployment, paths_copy = get_deployment_ds(paths_copy) 
+    
+        # Create a dictionary of key-value pairs of dataset variable name:alternate parameter name
+        test_parameters = get_test_parameters(deploy_ds)
+        
+        # Run local QARTOD test
+        print(f'Running local QARTOD {test_name} test for deployment {deployment}.')  
+        if len(test_parameters) > 0:
+            qc_test_results = eval(f'run_qartod_{test_name}(refdes, stream, test_parameters, deploy_ds)')
+            qc_test_results = timeseries_dict_to_xarray(qc_test_results, deploy_ds)
+            # Add variable containing deployment number used in sorting and merging overlapping deployments
+            qc_test_results['deployment'] = deploy_ds['deployment']
+        else:
+            pass
+
+        # Build file name and directory for local QARTOD test results
+        folder_path = os.path.join(os.path.abspath('../data/interim'), method, stream, refdes)
+        os.makedirs(folder_path, exist_ok=True)
+        test_results_path = os.path.join(folder_path, f"{test_name}_test-deployment00{deployment}.nc")
+
+        # Save local test results
+        qc_test_results.to_netcdf(test_results_path, mode='w')
+    return
+
+
+def run_comparison(ds, param, test_results, test):
+    """Runs a comparison between the qartod gross range results returned
     as part of the dataset and results calculated locally.
+    Original function created by Andrew Reed.
     
     edit:
         added parameter - test: string "gross_range" or "climatology"
