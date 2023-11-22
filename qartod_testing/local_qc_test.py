@@ -8,6 +8,7 @@
 # Import modules used in this notebook
 import io
 import ast
+import os
 
 import numpy as np
 import xarray as xr
@@ -18,7 +19,8 @@ from ioos_qc.qartod import gross_range_test, climatology_test, \
     ClimatologyConfig
 from urllib3.util import Retry
 
-from qartod_testing.qc_flag_statistics import get_test_parameters
+from qartod_testing.qc_flag_statistics import get_test_parameters, \
+    timeseries_dict_to_xarray, get_deployment_ds
 
 # Initialize Session object for M2M data requests
 SESSION = requests.Session()
@@ -259,6 +261,58 @@ def run_qartod_climatology(refdes, stream, test_parameters, ds):
             param: param_results
         })
     return climatology_results
+
+
+def save_local_qc_tests(file_paths, refdes, stream, method, test_name):
+    """ For a set of file paths and QC test name to run, this function
+    loads each dataset individually and runs the requested local QC
+    test. The parameters to test are determined from the variable names
+    in the dataset containing "qartod_executed". The results of the test
+    on all parameters that have relevant lookup tables on the
+    oceanobservatories/qc-lookup repo on GitHub are saved in an
+    xarray Dataset to a NetCDF file in the
+    data/interim/{method}/{stream}/{refdes} directory in this project.
+    
+    Input:
+    ------
+    file_paths: list of strings, the paths to the external dataset files
+        downloaded from OOINet.
+    test_name: string, either "climatology" or "gross_range" for the
+        desired QC test to run. These options both currently call the
+        QARTOD tests from the US IOOS ioos_qc package.
+        
+    Returns:
+    --------
+    None
+    """
+    # Create copy of list of file paths for loading multi-file, single-deployment datasets
+    paths_copy = file_paths.copy()
+    
+    while len(paths_copy) > 0:
+        # Load data from a single deployment
+        deploy_ds, deployment, paths_copy = get_deployment_ds(paths_copy) 
+    
+        # Create a dictionary of key-value pairs of dataset variable name:alternate parameter name
+        test_parameters = get_test_parameters(deploy_ds)
+        
+        # Run local QARTOD test
+        print(f'Running local QARTOD {test_name} test for deployment {deployment}.')  
+        if len(test_parameters) > 0:
+            qc_test_results = eval(f'run_qartod_{test_name}(refdes, stream, test_parameters, deploy_ds)')
+            qc_test_results = timeseries_dict_to_xarray(qc_test_results, deploy_ds)
+            # Add variable containing deployment number used in sorting and merging overlapping deployments
+            qc_test_results['deployment'] = deploy_ds['deployment']
+        else:
+            pass
+
+        # Build file name and directory for local QARTOD test results
+        folder_path = os.path.join(os.path.abspath('../data/interim'), method, stream, refdes)
+        os.makedirs(folder_path, exist_ok=True)
+        test_results_path = os.path.join(folder_path, f"{test_name}_test-deployment00{deployment}.nc")
+
+        # Save local test results
+        qc_test_results.to_netcdf(test_results_path, mode='w')
+    return
 
 
 def run_comparison(ds, param, test_results, test):
