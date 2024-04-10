@@ -32,3 +32,4 @@ dependencies:
   - chardet
   - conda-build
   - scipy
+  - gsw
