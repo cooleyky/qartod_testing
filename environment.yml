@@ -32,3 +32,5 @@ dependencies:
   - chardet
   - conda-build
   - scipy
+  - gsw
+  - scikit-learn
