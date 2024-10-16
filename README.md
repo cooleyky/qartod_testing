@@ -23,7 +23,8 @@ All notebooks are numbered at the beginning of the file name to indicate the tas
 So far the numbering of notebooks for different tasks is as follows:
 <ul><li><strong>0#: </strong> QARTOD test flag statistics and local test comparison for QC tests in production</li>
 <li><strong>1#: </strong> CGSN SPKIR (downwelling spectral irradiance) data deep dive</li>
-<li><strong>2#: </strong> Assessment of CGSN ADCP data for QARTOD planning</li></ul>
+<li><strong>2#: </strong> Assessment of CGSN ADCP data for QARTOD planning</li>
+<li><strong>4#: </strong> Find CGSN QARTOD tests not executed</li></ul>
 
 ### qartod_testing
 This is the directory where the project source code lives. Each of the individual libraries within this directory is focused on a single task (or even half a task in the case of QC flag statistics and running a QC test locally).  
