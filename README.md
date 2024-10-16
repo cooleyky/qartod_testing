@@ -8,8 +8,11 @@ QARTOD Testing
 [![Documentation Status](https://readthedocs.org/projects/qartod_testing/badge/?version=latest)](https://qartod_testing.readthedocs.io/en/latest/?badge=latest)
 
 
+## Purpose
 Scripts to check performance of QARTOD tests on OOI data in both production and development. This includes providing statistics illustrating the composition of QARTOD flags for a given dataset, running QC tests on datasets locally for comparison with expected results, and perform data deep dives in preparation for new QARTOD tests.
 
+## Glossary
+Coming soon!
 
 ## Project Organization
 Since this repository hosts scripts and notebooks for a few different tasks all related to development of QARTOD tests and quantifying their performance, the organization of this repository follows some rules to help clarify which parts are used in each task.
@@ -18,8 +21,9 @@ Since this repository hosts scripts and notebooks for a few different tasks all 
 All notebooks are numbered at the beginning of the file name to indicate the task and steps through which data was processed. The first digit will be the same for notebooks that are for the same task, and the second digit indicates the order that the notebooks should be run to arrive at the same results starting from step "1".
 
 So far the numbering of notebooks for different tasks is as follows:
-<ul><li><strong>0#: </strong> QARTOD test flag statistics and local test comparison</li>
-<li><strong>1#: </strong> SPKIR (downwelling spectral irradiance) data deep dive</li></ul>
+<ul><li><strong>0#: </strong> QARTOD test flag statistics and local test comparison for QC tests in production</li>
+<li><strong>1#: </strong> CGSN SPKIR (downwelling spectral irradiance) data deep dive</li>
+<li><strong>2#: </strong> Assessment of CGSN ADCP data for QARTOD planning</li></ul>
 
 ### qartod_testing
 This is the directory where the project source code lives. Each of the individual libraries within this directory is focused on a single task (or even half a task in the case of QC flag statistics and running a QC test locally).  
@@ -76,10 +80,10 @@ In your home directory, you can save your M2M credentials in a text file named `
            login <YOUR-OOI-API-USERNAME>
            password <YOUR-API-TOKEN>
            
-If you have access to Dev-1 and intend to work with data from that server as well, you will need another similar entry with the server web address in place of ooinet.oceanobservatories.org. More detailed information on setting up this file can be found here: https://github.com/oceanobservatories/ooi-data-explorations/tree/master/python#access-credentials
+If you have access to the development platform and intend to work with data from that server as well, you will need another similar entry with the server web address in place of ooinet.oceanobservatories.org. More detailed information on setting up this file can be found here: https://github.com/oceanobservatories/ooi-data-explorations/tree/master/python#access-credentials
 
 ### Working from a branch in your forked repository
-Whether you're planning on just trying out the included notebooks in this repository or adding a feature that you will want to push to this project later, working within a uniquely-named branch of your fork will save you from headache and confusion down the road. This can be done from either the terminal or in the GitHub Desktop program. I've found that the most useful branch names are brief, descriptive names of the feature I want to add or change, or I will use an overall goal for working with this respository.
+Whether you're planning on just trying out the included notebooks in this repository or adding a feature that you will want to push to this project later, working within a uniquely-named branch on your fork will save you from headache and confusion down the road. This can be done from either the terminal or in the GitHub Desktop program. I've found that the most useful branch names are brief, descriptive names of the feature I want to add or change, or I will use an overall goal for working with this respository.
 
 ### Using your qartod_test environment in Jupyter Notebooks
 Now that the environment is set up and you have a specific branch to work from, you'll need to choose a kernel when you run a notebook for the first time. You'll choose the kernel that is named the same as the qartod_test environment. This way, all modules that will be imported into the notebooks in this repository are already installed in the environment being used. If the `qartod_test` environment is not automagically added as a kernel option, you can add it from a terminal with the following command: `python -m ipykernel install --user --name=qartod_test`
