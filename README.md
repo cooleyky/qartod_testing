@@ -11,14 +11,8 @@ QARTOD Testing
 ## Purpose
 Scripts to check performance of QARTOD tests on OOI data in both production and development. This includes providing statistics illustrating the composition of QARTOD flags for a given dataset, running QC tests on datasets locally for comparison with expected results, and perform data deep dives in preparation for new QARTOD tests.
 
-
-## Table of Contents
-maybe... I'm not sold
-
-
 ## Glossary
 Coming soon!
-
 
 ## Project Organization
 Since this repository hosts scripts and notebooks for a few different tasks all related to development of QARTOD tests and quantifying their performance, the organization of this repository follows some rules to help clarify which parts are used in each task.
@@ -86,7 +80,7 @@ In your home directory, you can save your M2M credentials in a text file named `
            login <YOUR-OOI-API-USERNAME>
            password <YOUR-API-TOKEN>
            
-If you have access to Dev-1 and intend to work with data from that server as well, you will need another similar entry with the server web address in place of ooinet.oceanobservatories.org. More detailed information on setting up this file can be found here: https://github.com/oceanobservatories/ooi-data-explorations/tree/master/python#access-credentials
+If you have access to the development platform and intend to work with data from that server as well, you will need another similar entry with the server web address in place of ooinet.oceanobservatories.org. More detailed information on setting up this file can be found here: https://github.com/oceanobservatories/ooi-data-explorations/tree/master/python#access-credentials
 
 ### Working from a branch in your forked repository
 Whether you're planning on just trying out the included notebooks in this repository or adding a feature that you will want to push to this project later, working within a uniquely-named branch on your fork will save you from headache and confusion down the road. This can be done from either the terminal or in the GitHub Desktop program. I've found that the most useful branch names are brief, descriptive names of the feature I want to add or change, or I will use an overall goal for working with this respository.
