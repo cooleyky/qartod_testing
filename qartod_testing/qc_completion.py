@@ -208,8 +208,8 @@ def check_tests_exe(data, test_parameters, grt_table=False, ct_table=False):
             for key in test_parameters.keys():
                     if qartod == test_parameters[key]:
                         test_exe.update({param: data[key].tests_executed})
-                    # else:
-                    #     test_exe.update({param: "none"})
+                    else if grt_table is False:
+                        test_exe.update({param: "none"})
                         # print(qartod)
     return test_exe
 
@@ -219,11 +219,13 @@ def make_results_table(grt_table=False, ct_table=False):
         table = grt_table.reset_index(drop=True)
         table["GRTtable"] = True
     if ct_table is not False:
-        table["CTtable"] = table["parameters"].isin(list(ct_table["parameters"]))
-        ct_table["GRTtable"] = False
-        ct_table["CTtable"] = True
-        ct_table = ct_table[np.bitwise_not(ct_table["parameters"].isin(list(table["parameters"])))]
-        table = pd.concat([table, ct_table], ignore_index=True, sort=False)        
+        try:
+            table["CTtable"] = table["parameters"].isin(list(ct_table["parameters"]))
+        finally:
+            ct_table["GRTtable"] = False
+            ct_table["CTtable"] = True
+            ct_table = ct_table[np.bitwise_not(ct_table["parameters"].isin(list(table["parameters"])))]
+            table = pd.concat([table, ct_table], ignore_index=True, sort=False)        
     else:
         table["CTtable"] = False
     return table

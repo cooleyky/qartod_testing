@@ -25,7 +25,7 @@ from qartod_testing.qc_completion import load_gross_range_qartod_test_list, \
     check_tests_exe, make_results_table, add_test_exe, write_results
 
 # Define site for refdes search and find datasets available
-site = 'GA02HYPM'
+site = 'GA01SUMO'
 datasets = M2M.search_datasets(site)
 datasets.reset_index(inplace=True)
 datasets.drop(labels="index", axis=1, inplace=True)
@@ -48,7 +48,7 @@ for k in datasets.index:
         grt_table = load_gross_range_qartod_test_list(refdes, stream)
         ct_table = load_climatology_qartod_test_list(refdes, stream)
         if (grt_table is False) and (ct_table is False):
-            print(f"No test in production for {refdes}-{stream}.")
+            print(f"No existing qc-lookup table for {refdes}-{stream}.")
         else:
             # Load data
             get_vocabulary(site, node, sensor)
