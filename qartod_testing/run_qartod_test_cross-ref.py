@@ -1,5 +1,6 @@
+#!/usr/bin/env qartod_test
+#
 # run_qartod_test_cross-ref.py
-#!/usr/bin/env/qartod_test
 
 # Import libraries
 import numpy as np
@@ -31,7 +32,7 @@ datasets.drop(labels="index", axis=1, inplace=True)
 
 # Set csv save directory and file name for results
 csv_name = "GA01SUMO_test_cross-ref_results.csv"
-csv_dir = "./../data/processed/"
+csv_dir = "./data/processed/"
 # loop through sensors to check and find datastreams available
 for k in datasets.index:
     refdes = datasets.refdes[k]
