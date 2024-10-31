@@ -25,13 +25,13 @@ from qartod_testing.qc_completion import load_gross_range_qartod_test_list, \
     check_tests_exe, make_results_table, add_test_exe, write_results
 
 # Define site for refdes search and find datasets available
-site = 'GA01SUMO'
+site = 'GA02HYPM'
 datasets = M2M.search_datasets(site)
 datasets.reset_index(inplace=True)
 datasets.drop(labels="index", axis=1, inplace=True)
 
 # Set csv save directory and file name for results
-csv_name = "GA01SUMO_test_cross-ref_results.csv"
+csv_name = f"{site}_test_cross-ref_results.csv"
 csv_dir = "./data/processed/"
 # loop through sensors to check and find datastreams available
 for k in datasets.index:
