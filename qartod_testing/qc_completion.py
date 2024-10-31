@@ -6,7 +6,7 @@ parameters documented in the
 ocean-observatories/qc-lookup repo
 on GH.
 
-Version: 0.0 (22 Oct 2024)
+Version: 0.1 (31 Oct 2024)
 
 Author: Kylene Cooley (WHOI/OOI-CGSN)
 """
@@ -14,6 +14,8 @@ Author: Kylene Cooley (WHOI/OOI-CGSN)
 import io
 import requests
 import ast
+from glob import glob
+import numpy as np
 import pandas as pd
 
 # Define functions to load lookup table entries
@@ -22,8 +24,7 @@ import pandas as pd
 GITHUB_BASE_URL = "https://raw.githubusercontent.com/oceanobservatories/qc-lookup/master/qartod"
 
 def load_gross_range_qartod_test_list(refdes, stream):
-    """
-    Load the list of OOI gross range QARTOD tests developed
+    """ Load the list of OOI gross range QARTOD tests developed
     from lookup table on GitHub. 
     
     Parameters
@@ -71,8 +72,7 @@ def load_gross_range_qartod_test_list(refdes, stream):
 
 
 def load_climatology_qartod_test_list(refdes, stream):
-    """
-    Load the list of OOI climatology QARTOD tests developed
+    """ Load the list of OOI climatology QARTOD tests developed
     from lookup table on GitHub. 
     
     Parameters
@@ -125,8 +125,7 @@ def load_climatology_qartod_test_list(refdes, stream):
 # Create a dictionary of key-value pairs of dataset variable
 # name:alternate parameter name
 def make_test_parameter_dict(data):
-    """
-    Store executed test parameter names and alternate
+    """ Store executed test parameter names and alternate
     ooinet names in a dictionary. Reverse key, value
     order for comparison with developed test list.
     
@@ -213,3 +212,47 @@ def check_tests_exe(data, test_parameters, grt_table=False, ct_table=False):
                     #     test_exe.update({param: "none"})
                         # print(qartod)
     return test_exe
+
+
+def make_results_table(grt_table=False, ct_table=False):
+    if grt_table is not False:
+        table = grt_table.reset_index(drop=True)
+        table["GRTtable"] = True
+    if ct_table is not False:
+        table["CTtable"] = table["parameters"].isin(list(ct_table["parameters"]))
+        ct_table["GRTtable"] = False
+        ct_table["CTtable"] = True
+        ct_table = ct_table[np.bitwise_not(ct_table["parameters"].isin(list(table["parameters"])))]
+        table = pd.concat([table, ct_table], ignore_index=True, sort=False)        
+    else:
+        table["CTtable"] = False
+    return table
+
+
+def add_test_exe(table, test_exe):
+    """ Add column to cross-ref results table
+    with QARTOD tests executed by parameter.
+    """
+    table["testsExecuted"] = "none"
+    for k in table.index: 
+        param = table.at[k, "parameters"]
+        table.at[k, "testsExecuted"] = test_exe.get(param)
+    return table
+
+
+def write_results(table, csv_name="test_cross-ref_results.csv", csv_dir="/../data/processed/"):
+    """ Write QARTOD test cross-reference results
+    table to a CSV. Appends results to existing table if
+    found at the resulting csv_path.
+    """
+    csv_path = csv_dir+csv_name
+    if glob(csv_path)==[]:
+        file = open(csv_path, mode='w')
+        table.to_csv(csv_path, mode='a', index=False)
+    else: 
+        file = open(csv_path, mode='a')
+        table.to_csv(csv_path, mode='a', header=False, index=False)
+    # close file 
+    file.close()
+    print(f"results saved to {csv_path}")
+    return
