@@ -57,6 +57,7 @@ for k in datasets.index:
                 print(data.id) # to check data stream loaded
             except AttributeError:
                 print(f"No dataset available for {refdes}-{stream} tests.")
+                del [grt_table, ct_table]
             else:
                 # Create a dictionary of key-value pairs of dataset variable name:alternate parameter name
                 test_parameters = make_test_parameter_dict(data)
@@ -68,3 +69,5 @@ for k in datasets.index:
                 table = add_test_exe(table, test_exe)
                 # Write QARTOD test cross-reference results table to a CSV
                 write_results(table, csv_name, csv_dir)
+                del [grt_table, ct_table, data, test_parameters,
+                     test_exe, table]

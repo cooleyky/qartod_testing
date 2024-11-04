@@ -60,14 +60,15 @@ def load_gross_range_qartod_test_list(refdes, stream):
             (df["node"] == node) & 
             (df["sensor"] == sensor) &
             (df["stream"] == stream)]
-    
-    # Next, change parameter field to parameter names
-    df["parameters"] = df["parameters"].apply(ast.literal_eval)
-    df["parameters"] = df["parameters"].apply(lambda x: x.get("inp"))
-    
-    # Drop columns for qcConfig, source, notes
-    df.drop(columns=["qcConfig", "source", "notes"], inplace=True)
-
+    if df.empty:
+        return False
+    else:
+        # Next, change parameter field to parameter names
+        df["parameters"] = df["parameters"].apply(ast.literal_eval)
+        df["parameters"] = df["parameters"].apply(lambda x: x.get("inp"))
+        
+        # Drop columns for qcConfig, source, notes
+        df.drop(columns=["qcConfig", "source", "notes"], inplace=True)
     return df
 
 
@@ -111,14 +112,15 @@ def load_climatology_qartod_test_list(refdes, stream):
             (df["node"] == node) & 
             (df["sensor"] == sensor) &
             (df["stream"] == stream)]
-    
-    # Next, change parameter field to parameter name
-    df["parameters"] = df["parameters"].apply(ast.literal_eval)
-    df["parameters"] = df["parameters"].apply(lambda x: x.get("inp"))
-    
-    # Drop columns for climatologyTable, source, notes
-    df.drop(columns=["climatologyTable", "source", "notes"], inplace=True)
-    
+    if df.empty:
+        return False
+    else:
+        # Next, change parameter field to parameter name
+        df["parameters"] = df["parameters"].apply(ast.literal_eval)
+        df["parameters"] = df["parameters"].apply(lambda x: x.get("inp"))
+        
+        # Drop columns for climatologyTable, source, notes
+        df.drop(columns=["climatologyTable", "source", "notes"], inplace=True)
     return df
 
 
@@ -208,7 +210,7 @@ def check_tests_exe(data, test_parameters, grt_table=False, ct_table=False):
             for key in test_parameters.keys():
                     if qartod == test_parameters[key]:
                         test_exe.update({param: data[key].tests_executed})
-                    else if grt_table is False:
+                    elif grt_table is False:
                         test_exe.update({param: "none"})
                         # print(qartod)
     return test_exe
