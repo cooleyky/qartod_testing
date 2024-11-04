@@ -207,12 +207,12 @@ def check_tests_exe(data, test_parameters, grt_table=False, ct_table=False):
     if ct_table is not False:
         for param in ct_table.parameters:
             qartod = param+"_qartod_executed"
-            for key in test_parameters.keys():
-                    if qartod == test_parameters[key]:
-                        test_exe.update({param: data[key].tests_executed})
-                    elif grt_table is False:
-                        test_exe.update({param: "none"})
-                        # print(qartod)
+            if qartod in test_parameters.keys():
+                var = test_parameters[qartod]
+                test_exe.update({param: data[var].tests_executed})
+            elif param not in grt_table.parameters:
+                test_exe.update({param: "none"})
+                # print(qartod)
     return test_exe
 
 
