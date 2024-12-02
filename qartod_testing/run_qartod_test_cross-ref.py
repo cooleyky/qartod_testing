@@ -25,7 +25,7 @@ from qartod_testing.qc_completion import load_gross_range_qartod_test_list, \
     check_tests_exe, make_results_table, add_test_exe, write_results
 
 # Define site for refdes search and find datasets available
-site = 'GA01SUMO'
+site = 'CP10CNSM'
 datasets = M2M.search_datasets(site)
 datasets.reset_index(inplace=True)
 datasets.drop(labels="index", axis=1, inplace=True)
