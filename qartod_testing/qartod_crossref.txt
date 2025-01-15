@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# qartod_crossref - runs the qartod tests cross-reference
+# Python script and saves the standard output to a 
+# text file named with the OOI array site tested.
+#
+# 15 Jan 2025
+# Kylene Cooley
+
+qartod_crossref() {
+    script -B ./data/processed/$1-output.txt
+    conda activate qartod_test
+    python ./qartod_testing/run_qartod_test_cross-ref.py
+    exit
+}
