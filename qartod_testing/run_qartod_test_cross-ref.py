@@ -22,7 +22,7 @@ from qartod_testing.qc_completion import load_gross_range_qartod_test_list, \
     check_tests_exe, make_results_table, add_test_exe, write_results
 
 # Define site for refdes search and find datasets available
-site = 'CP02PMCI'
+site = 'CP02PMUO'
 prefix = 'CP0'
 datasets = M2M.search_datasets(site)
 datasets.reset_index(inplace=True)
@@ -51,7 +51,10 @@ for k in datasets.index:
             # Load data
             get_vocabulary(site, node, sensor)
             print(f"Loading deployment {deploy}")
-            data = load_kdata(site, node, sensor, method, stream, ('*deployment%04d*%s*.nc' % (deploy, instclass)))
+            try:
+                data = load_kdata(site, node, sensor, method, stream, ('*deployment%04d*%s*.nc' % (deploy, instclass)))
+            except:
+                print(f"Loading deployment {deploy} from kdata failed")
             while data is None:
                 deploy+=1
                 if deploy > datasets.deployments[k][-1]:
@@ -59,7 +62,10 @@ for k in datasets.index:
                     break
                 else:
                     print(f"Loading deployment {deploy}")
-                    data = load_kdata(site, node, sensor, method, stream, ('*deployment%04d*%s*.nc' % (deploy, instclass)))
+                    try:
+                        data = load_kdata(site, node, sensor, method, stream, ('*deployment%04d*%s*.nc' % (deploy, instclass)))
+                    except:
+                        print(f"Loading deployment {deploy} from kdata failed")
             try:
                 print(data.id) # to check data stream loaded
             except AttributeError:
@@ -67,20 +73,22 @@ for k in datasets.index:
             else:
                 # Create a dictionary of key-value pairs of dataset variable name:alternate parameter name
                 test_parameters = make_test_parameter_dict(data)
-                # If QARTOD test not executed on kdata load data with M2M request
+                # If QARTOD test not executed on kdata then load data with M2M request
                 if len(test_parameters)==0:
                     deploy_info = M2M.get_deployments(refdes, deploy_num=str(deploy))
-                    dt_start = deploy_info.deployStart[0]
-                    dt_end = deploy_info.deployStart[0] + pd.Timedelta(5, 'D')
+                    dt_start = deploy_info.deployStart[0] + pd.Timedelta(5, 'D')
+                    dt_end = deploy_info.deployStart[0] + pd.Timedelta(20, 'D')
                     dt_start = dt_start.isoformat(timespec='milliseconds')+'Z'
                     dt_end = dt_end.isoformat(timespec='milliseconds')+'Z'
                     m2m_result = m2m_request(site, node, sensor, method, stream,
                          start=dt_start, stop=dt_end)
                     try:
-                        data = m2m_collect(m2m_result)
-                        test_parameters = make_test_parameter_dict(data)
+                        m2m_data = m2m_collect(m2m_result, tag=('.*deployment%04d.*%s.*\.nc$' % (deploy, instclass)))
                     except:
                         print("M2M data request or collection failed")
+                    else:
+                        data = m2m_data
+                        test_parameters = make_test_parameter_dict(data)
                 # Use test parameters to check for tests executed in dataset
                 test_exe = check_tests_exe(data, test_parameters, grt_table, ct_table)
                 # Make table for cross-ref results
