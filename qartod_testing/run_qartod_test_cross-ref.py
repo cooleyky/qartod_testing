@@ -22,7 +22,7 @@ from qartod_testing.qc_completion import load_gross_range_qartod_test_list, \
     check_tests_exe, make_results_table, add_test_exe, write_results
 
 # Define site for refdes search and find datasets available
-site = 'CP02PMUO'
+site = 'CP03ISSM'
 prefix = 'CP0'
 datasets = M2M.search_datasets(site)
 datasets.reset_index(inplace=True)
