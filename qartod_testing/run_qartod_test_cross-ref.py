@@ -22,8 +22,8 @@ from qartod_testing.qc_completion import load_gross_range_qartod_test_list, \
     check_tests_exe, make_results_table, add_test_exe, write_results
 
 # Define site for refdes search and find datasets available
-site = 'CP03ISSM'
-prefix = 'CP0'
+site = 'GA01SUMO'
+prefix = f"{site[0:2]}*"
 datasets = M2M.search_datasets(site)
 datasets.reset_index(inplace=True)
 datasets.drop(labels="index", axis=1, inplace=True)
@@ -34,6 +34,9 @@ csv_dir = f"./data/processed/{prefix}_tests_completed2/"
 # loop through sensors to check and find datastreams available
 for k in datasets.index:
     refdes = datasets.refdes[k]
+    if ("FDCHP" in refdes) or ("MOPAK" in refdes):
+        print("skipped "+refdes)
+        continue
     datastreams = M2M.get_datastreams(refdes)
     # loop through datastreams and first deployment available
     site, node, sensor = refdes.split("-", 2)
