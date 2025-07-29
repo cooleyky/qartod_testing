@@ -19,10 +19,11 @@ from ooinet import M2M
 # Import functions from project qc_completion module
 from qartod_testing.qc_completion import load_gross_range_qartod_test_list, \
     load_climatology_qartod_test_list, make_test_parameter_dict, \
-    check_tests_exe, make_results_table, add_test_exe, write_results
+    check_tests_exe, make_results_table, add_test_exe, write_results, \
+    check_skip_kw
 
 # Define site for refdes search and find datasets available
-site = 'GA01SUMO'
+site = 'GS02HYPM'
 prefix = f"{site[0:2]}"
 datasets = M2M.search_datasets(site)
 datasets.reset_index(inplace=True)
@@ -30,11 +31,12 @@ datasets.drop(labels="index", axis=1, inplace=True)
 
 # Set csv save directory and file name for results
 csv_name = f"{site}_test_cross-ref_results.csv"
-csv_dir = f"./data/processed/{prefix}_tests_completed2/"
+csv_dir = f"./data/processed/{prefix}_tests_completed3/"
 # loop through sensors to check and find datastreams available
 for k in datasets.index:
     refdes = datasets.refdes[k]
-    if ("FDCHP" in refdes) or ("MOPAK" in refdes):
+    # Skip this refdes if it contains a class keyword
+    if check_skip_kw(refdes, "class") != -1:
         print("skipped "+refdes)
         continue
     datastreams = M2M.get_datastreams(refdes)
@@ -45,6 +47,11 @@ for k in datasets.index:
         stream = datastreams.stream[m]
         deploy = datasets.deployments[k][0]
         instclass = sensor[3:8]
+
+        # Skip this stream if it contains a stream keyword
+        if check_skip_kw(stream, "stream") != -1:
+            continue
+        
         # Load gross range and climatology test tables
         grt_table = load_gross_range_qartod_test_list(refdes, stream)
         ct_table = load_climatology_qartod_test_list(refdes, stream)
@@ -60,6 +67,7 @@ for k in datasets.index:
                 print(f"Loading deployment {deploy} from kdata failed")
             while data is None:
                 deploy+=1
+                get_vocabulary(site, node, sensor)
                 if deploy > datasets.deployments[k][-1]:
                     print(f"No dataset available for {refdes}-{stream} tests.")
                     break

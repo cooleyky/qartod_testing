@@ -18,6 +18,38 @@ from glob import glob
 import numpy as np
 import pandas as pd
 
+# Define lists of keywords and function to skip certain data streams 
+SKIP_STREAM_KW = ["power", "metadata", "blank", "diagnostic", "dcl_eng",
+                  "cpm_eng", "metbk_hourly", "hyd_o", "wavss_a_dcl_fourier",
+                  "wavss_a_dcl_motion", "wavss_a_dcl_non_dir", "mopak_o_dcl_rate",
+                  "wave_burst", "wfp_eng", "offset", "sio_eng", "glider_eng",
+                  "glider_gps", "adcp_config", "imodem_control"]
+# Some classes are ignored below while skipping these two classes
+# serves a purpose.
+SKIP_CLASS_KW = ["FDCHP", "MOPAK"] # , "HYDGN", "DCLENG", "CPMENG"]
+
+def check_skip_kw(value, category):
+    """ Check a value against a list of keywords
+    that should be skipped for the given
+    category. 
+    
+    Parameters
+    -----------
+        value: str
+            String to search for values in the
+            selected list of keywords.
+        category: str
+            Indicates the keyword list to use
+            (e.g., stream, class).
+    
+    Revision History
+    -----------------
+        [2025-02-10] K. Cooley, Wrote original function.
+    """
+    kw_list = category.upper()
+    skip_value = [value.find(x) for x in eval(f"SKIP_{kw_list}_KW")]
+    return np.mean(skip_value)
+
 # Define functions to load lookup table entries
 # Functions from local_qc_test modified to load existing
 # tests for multiple parameters
