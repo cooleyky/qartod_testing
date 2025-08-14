@@ -6,7 +6,8 @@ parameters documented in the
 ocean-observatories/qc-lookup repo
 on GH.
 
-Version: 0.1 (31 Oct 2024)
+Version: 0.2 (8 Aug 2025)
+Previous Versions: 0.1 (31 Oct 2024)
 
 Author: Kylene Cooley (WHOI/OOI-CGSN)
 """
@@ -17,6 +18,9 @@ import ast
 from glob import glob
 import numpy as np
 import pandas as pd
+
+from ooi_data_explorations.common import m2m_request, m2m_collect
+from ooinet import M2M
 
 # Define lists of keywords and function to skip certain data streams 
 SKIP_STREAM_KW = ["power", "metadata", "blank", "diagnostic", "dcl_eng",
@@ -225,15 +229,23 @@ def check_tests_exe(data, test_parameters, grt_table=False, ct_table=False):
     ----------------
     [2024-10-18] K. Cooley, Original loop code.
     [2024-10-22] K. Cooley, Revised for use as function.
+    [2025-08-08] K. Cooley, Improve error handling for 
+        datasets on kdata missing the attributes for 
+        QARTOD variables.
     """
     test_exe = {}
+    load_m2m = False
     if grt_table is not False:
         for param in grt_table.parameters:
             qartod = param+"_qartod_executed"
             if qartod in test_parameters.keys():
                 var = test_parameters[qartod]
-                test_exe.update({param: data[var].tests_executed})
-                # print(qartod)
+                try:
+                    test_exe.update({param: data[var].tests_executed})
+                except AttributeError:
+                    print(f"Dataset is missing {var} QARTOD variable attributes.")
+                    test_exe.update({param: "AttributeError"}) # might be unnecessary
+                    load_m2m = True
             else:
                 test_exe.update({param: "none"})
     if ct_table is not False:
@@ -241,11 +253,16 @@ def check_tests_exe(data, test_parameters, grt_table=False, ct_table=False):
             qartod = param+"_qartod_executed"
             if qartod in test_parameters.keys():
                 var = test_parameters[qartod]
-                test_exe.update({param: data[var].tests_executed})
+                try:
+                    test_exe.update({param: data[var].tests_executed})
+                except AttributeError:
+                    print(f"Dataset is missing {var} QARTOD variable attributes.")
+                    test_exe.update({param: "AttributeError"})
+                    load_m2m = True
             elif param not in grt_table.parameters:
                 test_exe.update({param: "none"})
                 # print(qartod)
-    return test_exe
+    return test_exe, load_m2m
 
 
 def make_results_table(grt_table=False, ct_table=False):
@@ -292,3 +309,25 @@ def write_results(table, csv_name="test_cross-ref_results.csv", csv_dir="/../dat
     file.close()
     print(f"results saved to {csv_path}")
     return
+
+
+def load_m2m_data(refdes, method, stream, deploy):
+    """ Consolidated steps for loading a dataset
+    from the OOINet M2M API for the specific use
+    case of loading a single deployment. Start
+    and end times are included as arguments to
+    m2m_result to reduce the length of time spent
+    waiting for the request to be completed.
+    """
+    deploy_info = M2M.get_deployments(refdes, deploy_num=str(deploy))
+    dt_start = deploy_info.deployStart[0] + pd.Timedelta(5, 'D')
+    dt_end = deploy_info.deployStart[0] + pd.Timedelta(20, 'D')
+    dt_start = dt_start.isoformat(timespec='milliseconds')+'Z'
+    dt_end = dt_end.isoformat(timespec='milliseconds')+'Z'
+    site, node, sensor = refdes.split("-", 2)
+    instclass = sensor[3:8]
+    m2m_result = m2m_request(site, node, sensor, method, stream,
+         start=dt_start, stop=dt_end)
+    m2m_data = m2m_collect(m2m_result, tag=(
+                            '.*deployment%04d.*%s.*\.nc$' % (deploy, instclass)))
+    return m2m_data
