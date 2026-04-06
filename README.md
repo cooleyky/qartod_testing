@@ -24,6 +24,7 @@ So far the numbering of notebooks for different tasks is as follows:
 <ul><li><strong>0#: </strong> QARTOD test flag statistics and local test comparison for QC tests in production</li>
 <li><strong>1#: </strong> CGSN SPKIR (downwelling spectral irradiance) data deep dive</li>
 <li><strong>2#: </strong> Assessment of CGSN ADCP data for QARTOD planning</li>
+<li><strong>3#: </strong> Review HITL flag information from annotations</li>
 <li><strong>4#: </strong> Find CGSN QARTOD tests not executed</li></ul>
 
 ### qartod_testing
