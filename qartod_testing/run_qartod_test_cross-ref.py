@@ -8,6 +8,10 @@
 # module as a function for single-deployment use case. Edit
 # check_tests_exe to handle AttributeError and switch to M2M
 # as needed.
+# Revised 30 Sept 2026: Use argparse module to define the site
+# through a positional argument entered on the command line. 
+# Use the current year and month in YYYY-mm format in output
+# CSV dir.
 
 # Import libraries
 import numpy as np
@@ -17,6 +21,8 @@ import requests
 import io
 import ast
 from glob import glob
+import argparse
+from datetime import date
 
 # Import functions from ooinet and ooi_data_explorations libraries
 from ooi_data_explorations.common import load_kdata, get_vocabulary, \
@@ -29,16 +35,26 @@ from qartod_testing.qc_completion import load_gross_range_qartod_test_list, \
     check_tests_exe, make_results_table, add_test_exe, write_results, \
     check_skip_kw, load_m2m_data
 
+# Define a parser and dict to hold positional site_name argument
+parser = argparse.ArgumentParser()
+parser.add_argument("site_name")
+args = parser.parse_args()
+print(args.site_name)
+
 # Define site for refdes search and find datasets available
-site = 'CP05MOAS'
+site = args.site_name
 prefix = f"{site[0:3]}"
 datasets = M2M.search_datasets(site)
 datasets.reset_index(inplace=True)
 datasets.drop(labels="index", axis=1, inplace=True)
 
+# Create a year-month string for the CSV dir using current date
+today = date.today()
+year_month = today.strftime("%Y-%m")
+
 # Set csv save directory and file name for results
 csv_name = f"{site}_test_cross-ref_results.csv"
-csv_dir = f"./data/processed/{prefix}_tests_completed4/"
+csv_dir = f"./data/processed/{prefix}_tests_{year_month}/"
 # loop through sensors to check and find datastreams available
 for k in datasets.index:
     refdes = datasets.refdes[k]

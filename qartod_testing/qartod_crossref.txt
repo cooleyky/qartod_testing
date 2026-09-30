@@ -9,6 +9,6 @@
 qartod_crossref() {
     script -B ./data/processed/$1-output.txt
     conda activate qartod_test
-    python ./qartod_testing/run_qartod_test_cross-ref.py
+    python ./qartod_testing/run_qartod_test_cross-ref.py $1
     exit
 }
