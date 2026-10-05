@@ -19,6 +19,7 @@ import pandas as pd
 import xarray as xr
 import requests
 import io
+import os
 import ast
 from glob import glob
 import argparse
@@ -43,7 +44,9 @@ print(args.site_name)
 
 # Define site for refdes search and find datasets available
 site = args.site_name
-prefix = f"{site[0:3]}"
+prefix = f"{site[0:2]}"
+if "CP" in prefix:
+    prefix = f"{site[0:3]}"
 datasets = M2M.search_datasets(site)
 datasets.reset_index(inplace=True)
 datasets.drop(labels="index", axis=1, inplace=True)
@@ -54,7 +57,8 @@ year_month = today.strftime("%Y-%m")
 
 # Set csv save directory and file name for results
 csv_name = f"{site}_test_cross-ref_results.csv"
-csv_dir = f"./data/processed/{prefix}_tests_{year_month}/"
+csv_dir = f"/home/jovyan/code/qartod_testing/data/processed/{prefix}_tests_{year_month}/"
+os.makedirs(csv_dir, exist_ok=True)
 # loop through sensors to check and find datastreams available
 for k in datasets.index:
     refdes = datasets.refdes[k]
