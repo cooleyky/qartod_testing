@@ -6,8 +6,9 @@ parameters documented in the
 ocean-observatories/qc-lookup repo
 on GH.
 
-Version: 0.2 (8 Aug 2025)
-Previous Versions: 0.1 (31 Oct 2024)
+Version: 0.3 (5 Oct 2026)
+Previous Versions: 0.1 (31 Oct 2024),
+    0.2 (8 Aug 2025)
 
 Author: Kylene Cooley (WHOI/OOI-CGSN)
 """
@@ -84,6 +85,8 @@ def load_gross_range_qartod_test_list(refdes, stream):
     """
     subsite, node, sensor = refdes.split("-", 2)
     sensor_type = sensor[3:8].lower()
+    if "adcp" in sensor_type:
+        sensor_type = "adcp"
     
     # gitHub url to the gross range table
     GROSS_RANGE_URL = f"{GITHUB_BASE_URL}/{sensor_type}/{sensor_type}_qartod_gross_range_test_values.csv"
@@ -236,6 +239,8 @@ def check_tests_exe(data, test_parameters, grt_table=False, ct_table=False):
     [2025-08-08] K. Cooley, Improve error handling for 
         datasets on kdata missing the attributes for 
         QARTOD variables.
+    [2026-10-05] K. Cooley, Add exception for "adcp" 
+        sensor type. Add data ID to info messages.
     """
     test_exe = {}
     load_m2m = False
@@ -247,7 +252,7 @@ def check_tests_exe(data, test_parameters, grt_table=False, ct_table=False):
                 try:
                     test_exe.update({param: data[var].tests_executed})
                 except AttributeError:
-                    logger.info(f"Dataset is missing {var} QARTOD variable attributes.")
+                    logger.info(f"Dataset {data.id} is missing {var} QARTOD variable attributes.")
                     test_exe.update({param: "AttributeError"}) # might be unnecessary
                     load_m2m = True
             else:
@@ -260,7 +265,7 @@ def check_tests_exe(data, test_parameters, grt_table=False, ct_table=False):
                 try:
                     test_exe.update({param: data[var].tests_executed})
                 except AttributeError:
-                    logger.info(f"Dataset is missing {var} QARTOD variable attributes.")
+                    logger.info(f"Dataset {data.id} is missing {var} QARTOD variable attributes.")
                     test_exe.update({param: "AttributeError"})
                     load_m2m = True
             elif param not in grt_table.parameters:

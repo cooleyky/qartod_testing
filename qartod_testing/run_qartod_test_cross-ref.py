@@ -96,7 +96,7 @@ for k in datasets.index:
         else:
             # Load data
             get_vocabulary(site, node, sensor)
-            logging.info(f"Loading deployment {deploy}")
+            logging.info(f"Loading {refdes} {stream} deployment {deploy}")
             data = None
             try:
                 data = load_kdata(site, node, sensor, method, stream,
