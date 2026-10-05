@@ -18,9 +18,13 @@ import ast
 from glob import glob
 import numpy as np
 import pandas as pd
+import logging
 
 from ooi_data_explorations.common import m2m_request, m2m_collect
 from ooinet import M2M
+
+# Instantiate logger for module
+logger = logging.getLogger(__name__)
 
 # Define lists of keywords and function to skip certain data streams 
 SKIP_STREAM_KW = ["power", "metadata", "blank", "diagnostic", "dcl_eng",
@@ -243,7 +247,7 @@ def check_tests_exe(data, test_parameters, grt_table=False, ct_table=False):
                 try:
                     test_exe.update({param: data[var].tests_executed})
                 except AttributeError:
-                    print(f"Dataset is missing {var} QARTOD variable attributes.")
+                    logger.info(f"Dataset is missing {var} QARTOD variable attributes.")
                     test_exe.update({param: "AttributeError"}) # might be unnecessary
                     load_m2m = True
             else:
@@ -256,7 +260,7 @@ def check_tests_exe(data, test_parameters, grt_table=False, ct_table=False):
                 try:
                     test_exe.update({param: data[var].tests_executed})
                 except AttributeError:
-                    print(f"Dataset is missing {var} QARTOD variable attributes.")
+                    logger.info(f"Dataset is missing {var} QARTOD variable attributes.")
                     test_exe.update({param: "AttributeError"})
                     load_m2m = True
             elif param not in grt_table.parameters:
@@ -307,7 +311,7 @@ def write_results(table, csv_name="test_cross-ref_results.csv", csv_dir="/../dat
         table.to_csv(csv_path, mode='a', header=False, index=False)
     # close file 
     file.close()
-    print(f"results saved to {csv_path}")
+    logger.info(f"results saved to {csv_path}")
     return
 
 

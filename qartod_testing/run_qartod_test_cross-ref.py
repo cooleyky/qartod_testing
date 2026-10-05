@@ -12,6 +12,8 @@
 # through a positional argument entered on the command line. 
 # Use the current year and month in YYYY-mm format in output
 # CSV dir.
+# Revised 5 Oct 2026: Use os.makedirs() and logging module to
+# automate more of the process.
 
 # Import libraries
 import numpy as np
@@ -24,6 +26,7 @@ import ast
 from glob import glob
 import argparse
 from datetime import date
+import logging
 
 # Import functions from ooinet and ooi_data_explorations libraries
 from ooi_data_explorations.common import load_kdata, get_vocabulary, \
@@ -51,20 +54,26 @@ datasets = M2M.search_datasets(site)
 datasets.reset_index(inplace=True)
 datasets.drop(labels="index", axis=1, inplace=True)
 
-# Create a year-month string for the CSV dir using current date
+# Create a year-month string for the output directory using current date
 today = date.today()
 year_month = today.strftime("%Y-%m")
 
 # Set csv save directory and file name for results
 csv_name = f"{site}_test_cross-ref_results.csv"
-csv_dir = f"/home/jovyan/code/qartod_testing/data/processed/{prefix}_tests_{year_month}/"
-os.makedirs(csv_dir, exist_ok=True)
+dir_out = f"/home/jovyan/code/qartod_testing/data/processed/{prefix}_tests_{year_month}/"
+os.makedirs(dir_out, exist_ok=True)
+
+# Configure logging to save all info-level statements in a text file
+logging.basicConfig(filename=f'{dir_out}{site}-output.txt',
+                    format='%(asctime)s - %(message)s',
+                    level=logging.INFO)
+
 # loop through sensors to check and find datastreams available
 for k in datasets.index:
     refdes = datasets.refdes[k]
     # Skip this refdes if it contains a class keyword
     if check_skip_kw(refdes, "class") != -1:
-        print("skipped "+refdes)
+        logging.info("skipped "+refdes)
         continue
     datastreams = M2M.get_datastreams(refdes)
     # loop through datastreams and load first deployment available
@@ -83,30 +92,30 @@ for k in datasets.index:
         grt_table = load_gross_range_qartod_test_list(refdes, stream)
         ct_table = load_climatology_qartod_test_list(refdes, stream)
         if (grt_table is False) and (ct_table is False):
-            print(f"No existing qc-lookup table for {refdes}-{stream}.")
+            logging.info(f"No existing qc-lookup table for {refdes}-{stream}.")
         else:
             # Load data
             get_vocabulary(site, node, sensor)
-            print(f"Loading deployment {deploy}")
+            logging.info(f"Loading deployment {deploy}")
             data = None
             try:
                 data = load_kdata(site, node, sensor, method, stream,
                                   ('*deployment%04d*%s*.nc' % (deploy, instclass)))
             except:
-                print(f"Loading deployment {deploy} from kdata failed")
+                logging.info(f"Loading deployment {deploy} from kdata failed")
             while data is None:
                 deploy+=1
                 get_vocabulary(site, node, sensor)
                 if deploy > datasets.deployments[k][-1]:
-                    print(f"No dataset available for {refdes}-{stream} tests.")
+                    logging.info(f"No dataset available for {refdes}-{stream} tests.")
                     break
                 else:
-                    print(f"Loading deployment {deploy}")
+                    logging.info(f"Loading deployment {deploy}")
                     try:
                         data = load_kdata(site, node, sensor, method, stream,
                                           ('*deployment%04d*%s*.nc' % (deploy, instclass)))
                     except:
-                        print(f"Loading deployment {deploy} from kdata failed")
+                        logging.info(f"Loading deployment {deploy} from kdata failed")
             try:
                 print(data.id) # to check data stream loaded
             except AttributeError:
@@ -119,9 +128,9 @@ for k in datasets.index:
                 if len(test_parameters)==0:
                     try:
                         m2m_data = load_m2m_data(refdes, method, stream, deploy)
-                        print(m2m_data.id)
+                        logging.info(m2m_data.id)
                     except:
-                        print("M2M data request or collection failed")
+                        logging.info("M2M data request or collection failed")
                     else:
                         data = m2m_data
                         test_parameters = make_test_parameter_dict(data)
@@ -140,6 +149,6 @@ for k in datasets.index:
                 # Add column with QARTOD tests executed by parameter
                 table = add_test_exe(table, test_exe)
                 # Write QARTOD test cross-reference results table to a CSV
-                write_results(table, csv_name, csv_dir)
+                write_results(table, csv_name, dir_out)
                 del [grt_table, ct_table, data, test_parameters,
                      test_exe, table]
