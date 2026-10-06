@@ -14,6 +14,8 @@
 # CSV dir.
 # Revised 5 Oct 2026: Use os.makedirs() and logging module to
 # automate more of the process.
+# Revised 6 Oct 2026: Changed comparison for check_skip_kw to
+# work with re.findall() result instead of str.find().
 
 # Import libraries
 import numpy as np
@@ -72,7 +74,7 @@ logging.basicConfig(filename=f'{dir_out}{site}-output.txt',
 for k in datasets.index:
     refdes = datasets.refdes[k]
     # Skip this refdes if it contains a class keyword
-    if check_skip_kw(refdes, "class") != -1:
+    if check_skip_kw(refdes, "refdes") != 0:
         logging.info("skipped "+refdes)
         continue
     datastreams = M2M.get_datastreams(refdes)
@@ -85,7 +87,7 @@ for k in datasets.index:
         instclass = sensor[3:8]
 
         # Skip this stream if it contains a stream keyword
-        if check_skip_kw(stream, "stream") != -1:
+        if check_skip_kw(stream, "stream") != 0:
             continue
         
         # Load gross range and climatology test tables

@@ -6,9 +6,9 @@ parameters documented in the
 ocean-observatories/qc-lookup repo
 on GH.
 
-Version: 0.3 (5 Oct 2026)
+Version: 0.4 (6 Oct 2026)
 Previous Versions: 0.1 (31 Oct 2024),
-    0.2 (8 Aug 2025)
+    0.2 (8 Aug 2025), 0.3 (5 Oct 2026)
 
 Author: Kylene Cooley (WHOI/OOI-CGSN)
 """
@@ -16,6 +16,7 @@ Author: Kylene Cooley (WHOI/OOI-CGSN)
 import io
 import requests
 import ast
+import re
 from glob import glob
 import numpy as np
 import pandas as pd
@@ -28,14 +29,16 @@ from ooinet import M2M
 logger = logging.getLogger(__name__)
 
 # Define lists of keywords and function to skip certain data streams 
-SKIP_STREAM_KW = ["power", "metadata", "blank", "diagnostic", "dcl_eng",
+_SKIP_STREAM_KW = ["power", "metadata", "blank", "diagnostic", "dcl_eng",
                   "cpm_eng", "metbk_hourly", "hyd_o", "wavss_a_dcl_fourier",
                   "wavss_a_dcl_motion", "wavss_a_dcl_non_dir", "mopak_o_dcl_rate",
                   "wave_burst", "wfp_eng", "offset", "sio_eng", "glider_eng",
                   "glider_gps", "adcp_config", "imodem_control"]
-# Some classes are ignored below while skipping these two classes
-# serves a purpose.
-SKIP_CLASS_KW = ["FDCHP", "MOPAK"] # , "HYDGN", "DCLENG", "CPMENG"]
+# Define list of refdes keywords to skip. These are not expected
+# to be tested at all and not loading these datasets saves some time.
+# Keywords may be 1 or more parts of a refdes: sensor, node, site
+_SKIP_REFDES_KW = ["SBD.{2}-.{2}-SPKIR.{4}"] 
+# "FDCHP", "MOPAK", "HYDGN", "DCLENG", "CPMENG"] # Updated 6 Oct 2026
 
 def check_skip_kw(value, category):
     """ Check a value against a list of keywords
@@ -49,14 +52,17 @@ def check_skip_kw(value, category):
             selected list of keywords.
         category: str
             Indicates the keyword list to use
-            (e.g., stream, class).
+            (e.g., stream, refdes).
     
     Revision History
     -----------------
         [2025-02-10] K. Cooley, Wrote original function.
+        [2026-10-06] K. Cooley, Changed constant names to
+            indicate internal use. Use re.findall and Regex
+            patterns instead of str.find().
     """
-    kw_list = category.upper()
-    skip_value = [value.find(x) for x in eval(f"SKIP_{kw_list}_KW")]
+    kw_list = f"_SKIP_{category.upper()}_KW"
+    skip_value = [len(re.findall(x, value)) for x in eval(kw_list)]
     return np.mean(skip_value)
 
 # Define functions to load lookup table entries
