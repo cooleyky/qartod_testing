@@ -112,7 +112,7 @@ for k in datasets.index:
                     logging.info(f"No dataset available for {refdes}-{stream} tests.")
                     break
                 else:
-                    logging.info(f"Loading deployment {deploy}")
+                    logging.info(f"Loading {refdes} {stream} deployment {deploy}")
                     try:
                         data = load_kdata(site, node, sensor, method, stream,
                                           ('*deployment%04d*%s*.nc' % (deploy, instclass)))
