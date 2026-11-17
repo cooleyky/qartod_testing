@@ -34,6 +34,28 @@ retry = Retry(connect=5, backoff_factor=0.5)
 adapter = HTTPAdapter(max_retries=retry)
 SESSION.mount('https://', adapter)
 
+def save_m2m_data(dev=False):
+    """ Save data downloaded through M2M to project data
+    dir for reuse.
+    Initial draft 26 Oct 2026, KMC.
+
+    Parameters
+    ------------
+        dev: bool
+            Default option FALSE downloads data from
+            production OOINet. TRUE requests and
+            downloads data from development OOINet;
+            requires live connection to Ocean Observatories
+            intranet.
+
+    Returns
+    ---------
+        file_paths: list of strings
+            Paths to saved datasets.
+            
+    """
+    
+
 
 def build_data_path(refdes, method, stream, prefix='', folder='interim',
                     suffix='.nc'):
@@ -58,7 +80,7 @@ def build_data_path(refdes, method, stream, prefix='', folder='interim',
         ds_path: Path object
              absolute path to dataset
     """
-     # build filename from dataset type and source
+    # build filename from dataset type and source
     filename = '-'.join((prefix,refdes,method,stream)) + suffix
     # path to data folder from notebook folder
     data_folder = os.path.relpath('../data')
@@ -71,6 +93,10 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     """ Requests gold copy data via M2M, downloads requested datasets,
     and saves files containing a single deployment in the external data
     folder.
+    Revision History
+    ----------------
+    2026-11-17: Specify "write" mode in to_netcdf to ensure old files
+    are overwritten. -KMC
     
     Parameters
     ----------
@@ -97,7 +123,7 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     deployments = get_deployments(refdes)
 
     # Remove ancillary files from list of files from THREDDs catalog
-    sensor_files = clean_catalog(thredds_catalog, stream, deployments)
+    sensor_files, _ = clean_catalog(thredds_catalog, stream, deployments)
 
     # Now build the url to access the data
     sensor_files = [re.sub("catalog.html\?dataset=",
@@ -129,7 +155,7 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
             ds = ds.drop_vars(['serial_number', 'dcl_controller_timestamp',
                                'date_time_string'], errors='ignore')
             file_path = os.path.join(folder_path, file_name)
-            ds.to_netcdf(file_path)
+            ds.to_netcdf(file_path, mode='w')
             # ds.to_netcdf(file_path, mode='w', format='NETCDF4',
                          # engine='h5netcdf', encoding=ENCODINGS)
         else:
