@@ -96,7 +96,8 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     Revision History
     ----------------
     2026-11-17: Specify "write" mode in to_netcdf to ensure old files
-    are overwritten. -KMC
+    are overwritten. Also skip process_file function, as this removes
+    the necessary "_qartod_executed" variables. -KMC
     
     Parameters
     ----------
@@ -151,9 +152,10 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
                 ds = xr.load_dataset(io.BytesIO(response.content),
                                      decode_cf=False)
             # Preprocess downloaded data
-            ds = process_file(ds)
+            # ds = process_file(ds) - SKIP, REMOVES QARTOD EXECUTED VARS
             ds = ds.drop_vars(['serial_number', 'dcl_controller_timestamp',
                                'date_time_string'], errors='ignore')
+            
             file_path = os.path.join(folder_path, file_name)
             ds.to_netcdf(file_path, mode='w')
             # ds.to_netcdf(file_path, mode='w', format='NETCDF4',
