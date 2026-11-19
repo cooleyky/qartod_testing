@@ -1,6 +1,5 @@
 name: qartod_test
 channels:
-  - defaults
   - conda-forge
 dependencies:
   - requests
@@ -8,7 +7,7 @@ dependencies:
   - openssl
   - yaml
   - pyopenssl
-  - python=3.11.3
+  - python
   - numpy
   - pyyaml
   - python-dateutil
@@ -16,7 +15,7 @@ dependencies:
   - xarray
   - pandas
   - dask
-  - distributed=2023.6.0
+  - distributed
   - ioos_qc
   - matplotlib
   - tqdm
@@ -34,3 +33,4 @@ dependencies:
   - scipy
   - gsw
   - scikit-learn
+  - ooi-data-explorations

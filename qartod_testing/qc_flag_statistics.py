@@ -25,8 +25,8 @@ from urllib3.util import Retry
 
 from ooinet.M2M import get_thredds_url, get_thredds_catalog, get_deployments, \
     clean_catalog, URLS 
-from ooinet.Instrument.common import process_file
-from ooi_data_explorations.common import list_files, merge_frames, ENCODINGS
+from ooi_data_explorations.common import list_files, process_file, merge_frames, \
+    update_dataset, get_vocabulary, ENCODINGS
 
 # Initialize Session object for M2M data requests
 SESSION = requests.Session()
@@ -98,6 +98,13 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     2026-11-17: Specify "write" mode in to_netcdf to ensure old files
     are overwritten. Also skip process_file function, as this removes
     the necessary "_qartod_executed" variables. -KMC
+    2026-11-18: Change prior preprocessing on files to use 
+    process_file, update_dataset, update_dataset from ooi_data_expl
+    rations module  which has been updated to retain "_qartod_
+    xecuted" params
+ s of this date. This function still prints a me
+    sage if writing
+ ata to a NetCDF fails. - KMC
     
     Parameters
     ----------
@@ -127,8 +134,7 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     sensor_files, _ = clean_catalog(thredds_catalog, stream, deployments)
 
     # Now build the url to access the data
-    sensor_files = [re.sub("catalog.html\?dataset=",
-                           URLS["goldCopy_fileServer"], file) for file in
+    sensor_files = [file for file in
                     sensor_files if "blank" not in file]
 
     # build path to folder where data will be saved
@@ -142,26 +148,25 @@ def ooinet_gold_copy_request(refdes, method, stream, use_dask=False):
     for file in tqdm(sensor_files, 
                      desc='Downloading and Processing Data Files'):
         file_name = re.findall("deployment.*\.nc$", file)[0]
-        response = SESSION.get(file, timeout=(3.05, 120))
-        if response.ok:
-            # load the data file
-            if use_dask:
-                ds = xr.open_dataset(io.BytesIO(response.content),
-                                     decode_cf=False, chunks=10000)
-            else:
-                ds = xr.load_dataset(io.BytesIO(response.content),
-                                     decode_cf=False)
-            # Preprocess downloaded data
-            # ds = process_file(ds) - SKIP, REMOVES QARTOD EXECUTED VARS
-            ds = ds.drop_vars(['serial_number', 'dcl_controller_timestamp',
-                               'date_time_string'], errors='ignore')
-            
-            file_path = os.path.join(folder_path, file_name)
-            ds.to_netcdf(file_path, mode='w')
-            # ds.to_netcdf(file_path, mode='w', format='NETCDF4',
-                         # engine='h5netcdf', encoding=ENCODINGS)
-        else:
-            print("Bad request: unable to download file %s" % file_name)
+        ds = process_file(file, gc='GC')
+        site, node, sensor = refdes.split('-', 2)
+        vocab = get_vocabulary(site, node, sensor)[0]
+        ds = update_dataset(ds, vocab['maxdepth'])
+        # remove variables with invalid _FillValue attributes
+        keys = ['obs', 'id', 'provenance', 'driver_timestamp',
+                    'ingestion_timestamp', 'port_timestamp',
+                    'preferred_timestamp', 'date_time_string',
+                    'dcl_controller_timestamp']
+        for key in keys:
+            if key in ds.variables:
+                ds = ds.drop_vars(key)
+        file_path = os.path.join(folder_path, file_name)
+        # try:
+        # ds.to_netcdf(file_path, mode='w')
+        ds.to_netcdf(file_path, mode='w', format='NETCDF4',
+                         engine='h5netcdf', encoding=ENCODINGS)
+        # except:
+        #     print("Bad request: unable to download file %s" % file_name)
     return sensor_files
 
 
@@ -604,6 +609,11 @@ def qartod_summary_expanded(ds, params, deployment, test):
 def get_deployment_ds(paths_copy):
     """ Loads multi-file dataset for files whose names contain the same
     deployment number as the first file in the list.
+
+    Revision History
+    ----------------
+    2026-11-19: Updated to specify HDF5 engine for open_dataset,
+    and squeezes dimensions with length 1. -KMC
     """    
     # get deployment number from first file name
     file = paths_copy[0]    
@@ -613,11 +623,16 @@ def get_deployment_ds(paths_copy):
     deployment_files = [x for x in paths_copy if
                         f'deployment00{deployment}' in x]
     if len(deployment_files)>1:
-        deployment_ds = [xr.open_dataset(single_file) for single_file
+        deployment_ds = [xr.open_dataset(single_file, engine='h5netcdf') for single_file
                          in deployment_files]
+        # for ds in deployment_ds:
+        #     print(ds['station'])
+        deployment_ds = [ds.squeeze() for ds in deployment_ds]
+        # for ds in deployment_ds:
+        #     print(ds.dims)
         deployment_ds = merge_frames(deployment_ds)
     else:  
-        deployment_ds = xr.open_dataset(file)
+        deployment_ds = xr.open_dataset(file, engine='h5netcdf')
 
     [paths_copy.remove(x) for x in deployment_files]
     return deployment_ds, deployment, paths_copy
@@ -626,6 +641,11 @@ def collect_statistics(file_paths, test_name):
     """ Calls other functions to calculate statistics from a set of
     files and a name of a QARTOD test. The statistics are organized in
     a DataFrame.
+    Revision History
+    ----------------
+    2023-08-23: Initial draft. -KMC
+    2026-11-19: Updated to specify HDF5 engine for open_dataset,
+    and squeezes dimensions with length 1. -KMC
     
     Parameters:
     -----------
@@ -639,8 +659,6 @@ def collect_statistics(file_paths, test_name):
         statistics: Pandas DataFrame containing statistics on each
             parameter with a QARTOD test in order of deployment number,
             then statistics of the full record.
-        
-    Version 23 Aug 2023, Kylene M Cooley    
     """
     
     # Initialize empty dictionary for statistics
@@ -672,7 +690,7 @@ def collect_statistics(file_paths, test_name):
         statistics.update({f"{deployment}" : summary_results })
 
     # Open all data files and create merged full dataset
-    merged_ds = [xr.open_dataset(single_file) for single_file in file_paths]
+    merged_ds = [xr.open_dataset(single_file, engine='h5netcdf').squeeze() for single_file in file_paths]
     merged_ds = merge_frames(merged_ds)
     deployment = "all"
 
